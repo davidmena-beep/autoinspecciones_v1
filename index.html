@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0B2E59">
+<title>Autoinspección · Aseguradora del Sur</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Mulish:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#14263f;--muted:#5b6b80;--line:#d9e0e8;--brand:#0B2E59;--acc:#0B5CAD;--ok:#1f7a5c;--okbg:#e7f4ee;--warn:#9a6400;--warnbg:#fdf3dc;--bad:#b42318;--soft:#f3f6f9;color-scheme:light}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:#e6eaef;font:400 16px/1.45 "Mulish",Arial,sans-serif;color:var(--ink);-webkit-tap-highlight-color:transparent}
+#app{max-width:430px;min-height:100%;margin:0 auto;background:#fff;display:flex;flex-direction:column;padding-bottom:env(safe-area-inset-bottom,0px)}
+header.top{position:sticky;top:0;z-index:5;background:#fff;border-bottom:1px solid var(--line);padding:calc(10px + env(safe-area-inset-top,0px)) 16px 10px;display:flex;justify-content:space-between;align-items:center}
+.brand{font-weight:800;color:var(--brand);font-size:15px}.step{font-size:12px;color:var(--muted)}
+.prog{height:5px;background:#e8edf2}.prog i{display:block;height:100%;background:var(--acc);transition:width .3s}
+main{flex:1;padding:18px 16px 24px}
+h1{font-size:22px;line-height:1.25;margin:4px 0 10px}h2{font-size:17px;margin:18px 0 8px}
+p{margin:0 0 12px}.muted{color:var(--muted);font-size:14px}
+.btn{display:block;width:100%;border:0;border-radius:12px;background:var(--acc);color:#fff;font:800 16px Mulish,Arial;padding:15px;margin-top:12px;cursor:pointer}
+.btn:disabled{opacity:.45;cursor:not-allowed}.btn2{background:#fff;color:var(--acc);border:1.5px solid var(--acc)}
+.btn:focus-visible,.pt:focus-visible,input:focus-visible,a:focus-visible{outline:3px solid #7fb0f5;outline-offset:2px}
+.list{list-style:none;margin:0;padding:0}.list li{display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--line);font-size:15px}
+.n{flex:none;width:24px;height:24px;border-radius:50%;background:var(--okbg);color:var(--ok);font-weight:800;font-size:13px;display:grid;place-items:center}
+.card{background:var(--soft);border-radius:12px;padding:14px;margin:10px 0}
+label.chk{display:flex;gap:12px;align-items:flex-start;padding:12px 0;font-size:15px;border-bottom:1px solid var(--line)}label.chk input{width:22px;height:22px;flex:none;margin-top:1px}
+.field{margin:14px 0}.field label{display:block;font-size:13px;color:var(--muted)}.field input,.field select{width:100%;border:0;border-bottom:1.5px solid #9aa7b6;font:600 18px Mulish,Arial;padding:8px 0;background:transparent;color:var(--ink);border-radius:0}
+.field input:focus,.field select:focus{border-bottom-color:var(--acc);outline:none}
+.err{color:var(--bad);font-size:13px;margin-top:4px}.ok{color:var(--ok);font-weight:700}
+.tag{display:inline-block;font-size:12px;font-weight:800;border-radius:999px;padding:3px 9px}.tag.w{background:var(--warnbg);color:var(--warn)}.tag.o{background:var(--okbg);color:var(--ok)}
+.map{background:var(--soft);border-radius:12px;padding:6px}.map svg{width:100%;height:auto;display:block}
+.pt{cursor:pointer}
+.legend{font-size:12px;color:var(--muted);display:flex;gap:12px;flex-wrap:wrap;margin:6px 0}
+.docs li{cursor:pointer}
+.gal{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.gal button{position:relative;aspect-ratio:1;border:0;border-radius:8px;overflow:hidden;background:#e6ecf2;padding:0;cursor:pointer}
+.gal img{width:100%;height:100%;object-fit:cover}.gal span{position:absolute;left:4px;right:4px;bottom:4px;font-size:10px;font-weight:700;color:#fff;text-shadow:0 1px 2px #000;text-align:left}
+.gal i{position:absolute;top:4px;right:4px;width:16px;height:16px;border-radius:50%;background:var(--ok);color:#fff;font-size:10px;display:grid;place-items:center;font-style:normal}
+.demo{margin-top:26px;border-top:1px dashed var(--line);padding-top:10px;font-size:13px;color:var(--muted)}.demo a{color:var(--acc);margin-right:14px}
+/* Cámara */
+.cam{position:fixed;inset:0;z-index:20;background:#151b23;color:#fff;display:flex;flex-direction:column}
+.cam video,.cam .sim{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.cam .sim{background:radial-gradient(ellipse at 50% 55%,#4b5868 0%,#2a333f 60%,#151b23 100%)}
+.cam .hdr{position:relative;z-index:2;display:flex;justify-content:space-between;align-items:center;padding:calc(12px + env(safe-area-inset-top,0px)) 14px 12px;background:linear-gradient(#000b,#0000)}
+.cam .hdr button{background:#0006;border:0;color:#fff;font:700 15px Mulish;border-radius:10px;padding:8px 12px}
+.cam .ov{position:absolute;left:0;right:0;top:50%;transform:translateY(-55%);display:flex;justify-content:center;z-index:2;pointer-events:none}
+.cam .ov svg{width:86%;max-width:520px;height:auto;filter:drop-shadow(0 0 2px #0008)}
+.cam .chips{position:absolute;left:10px;right:10px;bottom:150px;display:flex;flex-wrap:wrap;gap:6px;justify-content:center;z-index:2}
+.chip{font-size:12px;font-weight:800;padding:5px 10px;border-radius:999px;background:#0009;border:1px solid #fff5}.chip.ok{background:#1f7a5cdd;border-color:#7fe0b8}.chip.wa{background:#b7791fdd;border-color:#ffd38a}
+.cam .tip{position:absolute;left:16px;right:16px;bottom:108px;text-align:center;font-weight:800;font-size:15px;text-shadow:0 1px 3px #000;z-index:2}
+.cam .shot{position:absolute;left:0;right:0;bottom:calc(20px + env(safe-area-inset-bottom,0px));display:flex;justify-content:center;z-index:2}
+.shutter{width:70px;height:70px;border-radius:50%;border:5px solid #fff;background:#fff3;cursor:pointer}.shutter:disabled{opacity:.35}
+.cam .notice{position:absolute;top:70px;left:14px;right:14px;z-index:3;background:#000a;border-radius:10px;padding:10px 12px;font-size:13px}
+.rev{position:fixed;inset:0;z-index:30;background:#000;color:#fff;display:flex;flex-direction:column}.rev img{flex:1;min-height:0;object-fit:contain;width:100%}
+.rev .bar{padding:12px 14px calc(14px + env(safe-area-inset-bottom,0px));background:#151b23}.rev .meta{font-size:12px;color:#cfd8e2;margin-bottom:8px}
+.rev .row{display:flex;gap:10px}.rev .row .btn{margin-top:6px}
+.cam .shot.nat{flex-direction:column;align-items:center;gap:10px;left:16px;right:16px}
+.cam .tip.nat{bottom:170px}
+.cam .aviso-vivo{position:absolute;top:64px;left:14px;right:14px;z-index:3;font-size:12px;color:#cfd8e2;text-align:center}
+@media (orientation:landscape){
+ .cam .ov{top:50%;left:0;right:200px;transform:translateY(-50%)}.cam .ov svg{width:80%;max-height:70vh}
+ .cam .tip.nat{left:16px;right:220px;bottom:auto;top:58px}
+ .cam .shot.nat{left:auto;right:calc(14px + env(safe-area-inset-right,0px));top:0;bottom:0;width:190px;justify-content:center}
+ .cam .shot.nat .btn{font-size:14px;padding:12px}
+}
+@media (orientation:landscape){.cam .chips{bottom:96px}.cam .tip{bottom:64px}.cam .shot{right:calc(18px + env(safe-area-inset-right,0px));left:auto;top:0;bottom:0;align-items:center}}
+</style>
+</head>
+<body>
+<div id="app" aria-live="polite"></div>
+<script>
+// ============ Datos (réplica de demostración del portal de SIRIUS) ============
+const DATA = {"icono":"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 340 124\" role=\"img\" aria-label=\"camioneta superior\"><rect x=\"66\" y=\"2\" width=\"38\" height=\"12\" rx=\"3\" fill=\"#1d2733\" stroke=\"#ffffff\" stroke-width=\"1.2\"/><rect x=\"246\" y=\"2\" width=\"38\" height=\"12\" rx=\"3\" fill=\"#1d2733\" stroke=\"#ffffff\" stroke-width=\"1.2\"/><rect x=\"66\" y=\"110\" width=\"38\" height=\"12\" rx=\"3\" fill=\"#1d2733\" stroke=\"#ffffff\" stroke-width=\"1.2\"/><rect x=\"246\" y=\"110\" width=\"38\" height=\"12\" rx=\"3\" fill=\"#1d2733\" stroke=\"#ffffff\" stroke-width=\"1.2\"/><path d=\"M22,10 C17,10 14,13 14,18 L14,106 C14,111 17,114 22,114 L294,114 C314,114 326,102 326,84 L326,40 C326,22 314,10 294,10 Z\" fill=\"#1d2733\" stroke=\"#1d2733\" stroke-width=\"1.2\"/><path d=\"M22,18 L118,18 L118,106 L22,106 Z\" fill=\"none\" stroke=\"#eef2f6\" stroke-width=\"1.3\"/><path d=\"M28,24 L112,24 M28,34 L112,34 M28,44 L112,44 M28,54 L112,54 M28,64 L112,64 M28,74 L112,74 M28,84 L112,84 M28,94 L112,94\" fill=\"none\" stroke=\"#eef2f6\" stroke-width=\"1.3\"/><path d=\"M126,26 L140,28 L140,96 L126,98 C121,82 121,42 126,26 Z\" fill=\"#eef2f6\"/><path d=\"M146,26 L222,26 C225,26 227,28 227,31 L227,93 C227,96 225,98 222,98 L146,98 C143,98 141,96 141,93 L141,31 C141,28 143,26 146,26 Z\" fill=\"#1d2733\" stroke=\"#1d2733\" stroke-width=\"1.2\"/><path d=\"M246,24 C258,42 258,82 246,100 L230,94 C236,78 236,46 230,30 Z\" fill=\"#eef2f6\"/><path d=\"M270,20 C284,42 284,82 270,104 M184,10 L184,26 M184,98 L184,114\" fill=\"none\" stroke=\"#eef2f6\" stroke-width=\"1.3\"/><path d=\"M238,3 C242,1 250,1 252,4 L250,10 L240,10 Z M238,121 C242,123 250,123 252,120 L250,114 L240,114 Z\" fill=\"#1d2733\" stroke=\"#1d2733\" stroke-width=\"1.2\"/><path d=\"M316,20 L324,34 L320,36 L312,24 Z M316,104 L324,90 L320,88 L312,100 Z\" fill=\"#eef2f6\"/><path d=\"M14,20 L20,20 L20,34 L14,34 Z M14,104 L20,104 L20,90 L14,90 Z\" fill=\"#eef2f6\"/></svg>","guia":{"frente":"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 180 124\" role=\"img\" aria-label=\"camioneta frente\"><rect x=\"30\" y=\"94\" width=\"26\" height=\"24\" rx=\"4\" fill=\"none\" stroke=\"#ffffff\" stroke-width=\"2\" stroke-dasharray=\"6 4\"/><rect x=\"124\" y=\"94\" width=\"26\" height=\"24\" rx=\"4\" fill=\"none\" stroke=\"#ffffff\" stroke-width=\"2\" stroke-dasharray=\"6 4\"/><path d=\"M24,104 L24,64 C24,56 30,52 40,50 L50,30 C53,25 58,23 64,23 L116,23 C122,23 127,25 130,30 L140,50 C150,52 156,56 156,64 L156,104 C156,107 154,108 151,108 L29,108 C26,108 24,107 24,104 Z\" fill=\"none\" stroke=\"#ffffff\" stroke-width=\"2\" stroke-dasharray=\"6 4\" stroke-linejoin=\"round\"/><path d=\"M56,48 L65,29 L115,29 L124,48 Z\" fill=\"none\" stroke=\"#ffffff\" stroke-width=\"1.2\" stroke-dasharray=\"4 3\" opacity=\"0.7\"/><path d=\"M40,46 L22,44 C19,44 18,46 18,48 L18,56 L40,56 Z M140,46 L158,44 C161,44 162,46 162,48 L162,56 L140,56 Z\" fill=\"none\" stroke=\"#ffffff\" stroke-width=\"2\" stroke-dasharray=\"6 4\" stroke-linejoin=\"round\"/></svg>","posterior":"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 180 124\" role=\"img\" aria-label=\"camioneta posterior\"><rect x=\"30\" y=\"94\" width=\"26\" height=\"24\" rx=\"4\" fill=\"none\" stroke=\"#ffffff\" stroke-width=\"2\" stroke-dasharray=\"6 4\"/><rect x=\"124\" y=\"94\" width=\"26\" height=\"24\" rx=\"4\" fill=\"none\" stroke=\"#ffffff\" stroke-width=\"2\" stroke-dasharray=\"6 4\"/><path d=\"M24,104 L24,52 L156,52 L156,104 C156,107 154,108 151,108 L29,108 C26,108 24,107 24,104 Z\" fill=\"none\" stroke=\"#ffffff\" stroke-width=\"2\" stroke-dasharray=\"6 4\" stroke-linejoin=\"round\"/><path d=\"M48,52 L54,30 C56,26 60,24 66,24 L114,24 C120,24 124,26 126,30 L132,52 Z\" fill=\"none\" stroke=\"#ffffff\" stroke-width=\"2\" stroke-dasharray=\"6 4\" stroke-linejoin=\"round\"/><path d=\"M60,48 L65,30 L115,30 L120,48 Z\" fill=\"none\" stroke=\"#ffffff\" stroke-width=\"1.2\" stroke-dasharray=\"4 3\" opacity=\"0.7\"/></svg>","lateral_izq":"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 340 124\" role=\"img\" aria-label=\"camioneta lateral_izq\"><g transform=\"translate(340,0) scale(-1,1)\"><path d=\"M18,94 C15,94 14,91 14,88 L14,58 L124,58 L130,32 C132,27 137,25 144,25 L226,25 C236,25 244,29 250,35 L270,56 L308,62 C320,64 326,72 326,82 L326,90 C326,93 324,94 321,94 L290,94 A26,26 0 0 0 238,94 L110,94 A26,26 0 0 0 58,94 Z\" fill=\"none\" stroke=\"#ffffff\" stroke-width=\"2\" stroke-dasharray=\"6 4\" stroke-linejoin=\"round\"/><path d=\"M136,55 L140,31 L184,31 L184,55 Z\" fill=\"none\" stroke=\"#ffffff\" stroke-width=\"1.2\" stroke-dasharray=\"4 3\" opacity=\"0.7\"/><path d=\"M190,55 L190,31 L224,31 C232,31 238,35 242,41 L254,55 Z\" fill=\"none\" stroke=\"#ffffff\" stroke-width=\"1.2\" stroke-dasharray=\"4 3\" opacity=\"0.7\"/><path d=\"M252,52 L262,47 C265,46 267,48 266,51 L264,56 L254,57 Z\" fill=\"none\" stroke=\"#ffffff\" stroke-width=\"2\" stroke-dasharray=\"6 4\" stroke-linejoin=\"round\"/><circle cx=\"84\" cy=\"98\" r=\"22\" fill=\"none\" stroke=\"#ffffff\" stroke-width=\"2\" stroke-dasharray=\"6 4\"/><circle cx=\"264\" cy=\"98\" r=\"22\" fill=\"none\" stroke=\"#ffffff\" stroke-width=\"2\" stroke-dasharray=\"6 4\"/></g></svg>","lateral_der":"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 340 124\" role=\"img\" aria-label=\"camioneta lateral_der\"><path d=\"M18,94 C15,94 14,91 14,88 L14,58 L124,58 L130,32 C132,27 137,25 144,25 L226,25 C236,25 244,29 250,35 L270,56 L308,62 C320,64 326,72 326,82 L326,90 C326,93 324,94 321,94 L290,94 A26,26 0 0 0 238,94 L110,94 A26,26 0 0 0 58,94 Z\" fill=\"none\" stroke=\"#ffffff\" stroke-width=\"2\" stroke-dasharray=\"6 4\" stroke-linejoin=\"round\"/><path d=\"M136,55 L140,31 L184,31 L184,55 Z\" fill=\"none\" stroke=\"#ffffff\" stroke-width=\"1.2\" stroke-dasharray=\"4 3\" opacity=\"0.7\"/><path d=\"M190,55 L190,31 L224,31 C232,31 238,35 242,41 L254,55 Z\" fill=\"none\" stroke=\"#ffffff\" stroke-width=\"1.2\" stroke-dasharray=\"4 3\" opacity=\"0.7\"/><path d=\"M252,52 L262,47 C265,46 267,48 266,51 L264,56 L254,57 Z\" fill=\"none\" stroke=\"#ffffff\" stroke-width=\"2\" stroke-dasharray=\"6 4\" stroke-linejoin=\"round\"/><circle cx=\"84\" cy=\"98\" r=\"22\" fill=\"none\" stroke=\"#ffffff\" stroke-width=\"2\" stroke-dasharray=\"6 4\"/><circle cx=\"264\" cy=\"98\" r=\"22\" fill=\"none\" stroke=\"#ffffff\" stroke-width=\"2\" stroke-dasharray=\"6 4\"/></svg>"},"vb":[0,0,340,124],"pts":[{"paso":"exteriores_frontal","pos":[336,62],"guia":{"tipo":"silueta","vista":"frente","orientacion":"vertical"}},{"paso":"identificacion_placa_delantera","pos":[336,82],"guia":{"tipo":"marco","marco":"placa","orientacion":"horizontal"}},{"paso":"motor_habitaculo_del_motor","pos":[285,62],"guia":{"tipo":"marco","marco":"libre","orientacion":"horizontal"}},{"paso":"exteriores_parabrisas","pos":[240,62],"guia":{"tipo":"silueta","vista":"frente","resalta":"glass","orientacion":"horizontal"}},{"paso":"identificacion_plaqueta_panoramica_vi","pos":[227,38],"guia":{"tipo":"marco","marco":"franja","orientacion":"horizontal"}},{"paso":"exteriores_lateral_izquierdo_de_ade","pos":[319,4],"guia":{"tipo":"silueta","vista":"lateral_izq","orientacion":"horizontal"}},{"paso":"exteriores_lateral_izquierdo_de_atr","pos":[23,4],"guia":{"tipo":"silueta","vista":"lateral_izq","orientacion":"horizontal"}},{"paso":"exteriores_lateral_derecho_de_ade","pos":[319,120],"guia":{"tipo":"silueta","vista":"lateral_der","orientacion":"horizontal"}},{"paso":"exteriores_lateral_derecho_de_atr","pos":[23,120],"guia":{"tipo":"silueta","vista":"lateral_der","orientacion":"horizontal"}},{"paso":"identificacion_sticker_vin","pos":[187,16],"guia":{"tipo":"marco","marco":"franja","orientacion":"horizontal"}},{"paso":"identificacion_chasis_en_relieve","pos":[261,40],"guia":{"tipo":"marco","marco":"franja","orientacion":"horizontal"}},{"paso":"exteriores_posterior","pos":[4,62],"guia":{"tipo":"silueta","vista":"posterior","orientacion":"vertical"}},{"paso":"identificacion_placa_trasera","pos":[4,82],"guia":{"tipo":"marco","marco":"placa","orientacion":"horizontal"}}]};
+const CASO = { numero: '20186', asegurado: 'Transportes del Litoral S.A.', contacto: 'Jorge Villacís Mora', cedulaFin: '4471', vehiculo: { placa: 'GSC7810', marca: 'Chevrolet', modelo: 'D-Max', anio: 2022 }, vence: '28/10/2026 · 20:30', compania: 'Aseguradora del Sur', telefono: '1800 737 787 (ejemplo)' };
+const NOMBRES = { exteriores_frontal: 'Frente', identificacion_placa_delantera: 'Placa delantera', motor_habitaculo_del_motor: 'Motor', exteriores_parabrisas: 'Parabrisas', identificacion_plaqueta_panoramica_vi: 'Plaqueta del parabrisas', exteriores_lateral_izquierdo_de_ade: 'Lateral izquierdo de adelante hacia atrás', exteriores_lateral_izquierdo_de_atr: 'Lateral izquierdo de atrás hacia adelante', exteriores_lateral_derecho_de_ade: 'Lateral derecho de adelante hacia atrás', exteriores_lateral_derecho_de_atr: 'Lateral derecho de atrás hacia adelante', identificacion_sticker_vin: 'Sticker VIN', identificacion_chasis_en_relieve: 'Chasis en relieve', exteriores_posterior: 'Posterior', identificacion_placa_trasera: 'Placa trasera', cerca_puerta_der: 'Foto de cerca · Puerta delantera derecha' };
+const ORDEN = ['exteriores_frontal', 'identificacion_placa_delantera', 'exteriores_lateral_izquierdo_de_ade', 'exteriores_lateral_izquierdo_de_atr', 'exteriores_posterior', 'identificacion_placa_trasera', 'exteriores_lateral_derecho_de_atr', 'exteriores_lateral_derecho_de_ade', 'exteriores_parabrisas', 'identificacion_plaqueta_panoramica_vi', 'motor_habitaculo_del_motor', 'identificacion_chasis_en_relieve', 'identificacion_sticker_vin'];
+const EXTERIORES = ORDEN.filter(id => id.startsWith('exteriores_'));
+const DOCS = [['doc_matricula_f', 'Matrícula (frente)'], ['doc_matricula_p', 'Matrícula (reverso)'], ['doc_cedula_f', 'Cédula (frente)'], ['doc_cedula_p', 'Cédula (reverso)'], ['doc_licencia_f', 'Licencia (frente)'], ['doc_licencia_p', 'Licencia (reverso)']];
+const TEXTOS = { frente: 'Ponte de frente, a unos 3 pasos. Que se lea la placa.', posterior: 'Ponte detrás, a unos 3 pasos. Que se lea la placa.', lateral: 'Aléjate hasta que el vehículo entero quepa en la silueta.', placa: 'La placa dentro del recuadro, sin reflejo.', franja: 'El número completo dentro de la franja.', libre: 'Centra lo que se pide en el marco.', documento: 'Sobre una superficie plana, sin dedos encima.', cerca: 'Toma de cerca, de frente al daño, con tu mano o una tarjeta como referencia de tamaño.' };
+const LECTURAS = { identificacion_placa_delantera: 'Leímos GSC7810 · 94 %', identificacion_placa_trasera: 'Leímos GSC7810 · 91 %', identificacion_chasis_en_relieve: 'Leímos MPATFS86JNT004471 · 88 %', identificacion_sticker_vin: 'Leímos MPATFS86JNT004471 · 92 %', identificacion_plaqueta_panoramica_vi: 'Leímos MPATFS86JNT004471 · 81 %', doc_matricula_f: 'Leímos la placa GSC7810 y el año 2022 · 90 %', doc_cedula_f: 'Leímos la cédula terminada en 4471 · 95 %', doc_licencia_f: 'Licencia tipo B vigente hasta 2028 · 89 %' };
+// ============ Estado (se guarda en este navegador para pausar y seguir) ============
+const KEY = 'sirius-autoinspeccion-demo';
+let S = { paso: 'bienvenida', consent: { datos: false, wa: false, sms: false }, identidad: { cedula: '', codigo: '', intentos: 0, ok: false }, vehiculo: null, discrepancia: null, fotos: {}, cerca: false, declaracion: { nombre: '', ok: false }, enviado: null };
+try { const g = JSON.parse(localStorage.getItem(KEY) || 'null'); if (g) S = Object.assign(S, g); } catch (e) {}
+const guardar = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { try { const liv = JSON.parse(JSON.stringify(S)); Object.values(liv.fotos).forEach(f => f.src = ''); localStorage.setItem(KEY, JSON.stringify(liv)); } catch (e2) {} } };
+const pasosFoto = () => ORDEN.concat(S.cerca ? ['cerca_puerta_der'] : []);
+const hechas = () => pasosFoto().filter(id => S.fotos[id]).length + DOCS.filter(([id]) => S.fotos[id]).length;
+const total = () => pasosFoto().length + DOCS.length;
+const FLUJO = ['bienvenida', 'consent', 'identidad', 'vehiculo', 'instrucciones', 'mapa', 'revision', 'declaracion', 'enviado'];
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const $ = s => document.querySelector(s);
+function ir(p) { S.paso = p; guardar(); render(); window.scrollTo(0, 0); }
+function shell(cuerpo, titulo) {
+  const i = Math.max(0, FLUJO.indexOf(S.paso)), pct = Math.round(i / (FLUJO.length - 1) * 100);
+  return '<header class="top"><span class="brand">aseguradora del sur</span><span class="step">' + (titulo || ('Paso ' + (i + 1) + ' de ' + FLUJO.length)) + '</span></header><div class="prog" aria-hidden="true"><i style="width:' + pct + '%"></i></div><main>' + cuerpo + '</main>';
+}
+// ============ Pantallas ============
+function render() {
+  const app = $('#app');
+  if (location.hash === '#caducado') { app.innerHTML = shell('<h1>Este enlace venció</h1><p>El enlace para inspeccionar el vehículo venció el 15/10/2026 · 20:30.</p><p class="muted">Pide uno nuevo y te lo enviaremos por WhatsApp o correo.</p><button class="btn" onclick="this.disabled=true;this.textContent=\'Listo: tu ejecutivo te enviará un enlace nuevo\'">Pedir un enlace nuevo</button><div class="demo">Demostración: <a href="#" onclick="location.hash=\'\';render();return false">Volver al enlace vigente</a></div>', 'Enlace vencido'); return; }
+  const v = CASO.vehiculo;
+  if (S.paso === 'bienvenida') app.innerHTML = shell('<h1>Hola, ' + esc(CASO.contacto.split(' ')[0]) + '</h1><p>Vas a inspeccionar el <b>' + esc(v.marca + ' ' + v.modelo + ' ' + v.anio) + '</b> (' + v.placa + ') de ' + esc(CASO.asegurado) + '.</p><ul class="list"><li><span class="n">1</span>Ten a mano la matrícula, tu cédula y tu licencia</li><li><span class="n">2</span>Busca un lugar con buena luz, de día</li><li><span class="n">3</span>Deja espacio alrededor del vehículo</li><li><span class="n">4</span>Son ' + total() + ' fotos guiadas · unos 10 minutos</li></ul><p class="muted" style="margin-top:12px">Puedes pausar y seguir después con este mismo enlace. Vence el ' + CASO.vence + '.</p><button class="btn" onclick="ir(\'consent\')">Empezar</button>' + demo());
+  else if (S.paso === 'consent') { const c = S.consent; app.innerHTML = shell('<h1>Antes de empezar</h1><label class="chk"><input type="checkbox" id="c1" ' + (c.datos ? 'checked' : '') + '><span>Acepto el tratamiento de mis datos personales para esta inspección. <span class="tag w">Texto pendiente de definición LOPDP</span></span></label><label class="chk"><input type="checkbox" id="c2" ' + (c.wa ? 'checked' : '') + '><span>Quiero recibir avisos de este trámite por WhatsApp (opcional)</span></label><label class="chk"><input type="checkbox" id="c3" ' + (c.sms ? 'checked' : '') + '><span>Quiero recibir avisos por SMS (opcional)</span></label><button class="btn" id="go" ' + (c.datos ? '' : 'disabled') + '>Continuar</button>');
+    const upd = () => { S.consent = { datos: $('#c1').checked, wa: $('#c2').checked, sms: $('#c3').checked }; $('#go').disabled = !S.consent.datos; guardar(); };
+    ['#c1', '#c2', '#c3'].forEach(id => $(id).addEventListener('change', upd)); $('#go').onclick = () => ir('identidad'); }
+  else if (S.paso === 'identidad') { const d = S.identidad; app.innerHTML = shell('<h1>Confirma que eres tú</h1><div class="field"><label for="ced">Número de cédula</label><input id="ced" inputmode="numeric" maxlength="10" autocomplete="off" value="' + esc(d.cedula) + '"><div class="err" id="e1"></div></div><button class="btn btn2" id="env">Enviarme el código por SMS</button><div id="cod" style="display:none"><div class="field"><label for="c">Código de 6 dígitos</label><input id="c" inputmode="numeric" maxlength="6" autocomplete="one-time-code"><div class="err" id="e2"></div></div><p class="muted">Demostración: el código es <b>482916</b>.</p><button class="btn" id="ver">Verificar</button></div>');
+    $('#env').onclick = () => { const c = $('#ced').value.trim(); if (!/^\d{10}$/.test(c)) { $('#e1').textContent = 'Ingresa los 10 dígitos de tu cédula.'; return; } if (!c.endsWith(CASO.cedulaFin)) { $('#e1').textContent = 'Demostración: usa una cédula terminada en ' + CASO.cedulaFin + ' (p. ej. 1712344471).'; return; } $('#e1').textContent = ''; S.identidad.cedula = c; guardar(); $('#cod').style.display = 'block'; $('#env').textContent = 'Código enviado al celular terminado en 41'; $('#env').disabled = true; $('#c').focus(); };
+    $('#ver') && ($('#ver').onclick = () => { if ($('#c').value === '482916') { S.identidad.ok = true; ir('vehiculo'); } else { S.identidad.intentos++; guardar(); $('#e2').textContent = S.identidad.intentos >= 3 ? 'Superaste los 3 intentos. Pide un código nuevo en 60 segundos.' : 'El código no coincide. Te quedan ' + (3 - S.identidad.intentos) + ' intentos.'; } }); }
+  else if (S.paso === 'vehiculo') { const x = S.vehiculo || v; app.innerHTML = shell('<h1>¿Es este tu vehículo?</h1><div class="field"><label>Placa</label><input value="' + v.placa + '" disabled></div><div class="field"><label for="ma">Marca</label><select id="ma"><option' + (x.marca === 'Chevrolet' ? ' selected' : '') + '>Chevrolet</option><option' + (x.marca === 'Toyota' ? ' selected' : '') + '>Toyota</option><option' + (x.marca === 'Mazda' ? ' selected' : '') + '>Mazda</option></select></div><div class="field"><label for="mo">Modelo</label><select id="mo"><option' + (x.modelo === 'D-Max' ? ' selected' : '') + '>D-Max</option><option>Hilux</option><option>BT-50</option></select></div><div class="field"><label for="an">Año</label><input id="an" inputmode="numeric" maxlength="4" value="' + x.anio + '"></div><p class="muted" id="dis">' + (S.discrepancia ? '<span class="tag w">Corregiste: ' + esc(S.discrepancia) + '</span> Lo revisará un ejecutivo.' : 'Si algo no coincide, corrígelo.') + '</p><button class="btn" id="ok">Sí, continuar</button>');
+    $('#ok').onclick = () => { const n = { placa: v.placa, marca: $('#ma').value, modelo: $('#mo').value, anio: Number($('#an').value) }; const dif = ['marca', 'modelo', 'anio'].filter(k => String(n[k]) !== String(v[k])).map(k => ({ marca: 'marca', modelo: 'modelo', anio: 'año' }[k]) + ' ' + v[k] + ' → ' + n[k]); S.vehiculo = n; S.discrepancia = dif.join(', ') || null; ir('instrucciones'); }; }
+  else if (S.paso === 'instrucciones') app.innerHTML = shell('<h1>Cómo tomar las fotos</h1><ul class="list"><li><span class="n">1</span>Te mostraremos un mapa del vehículo: cada punto es una foto.</li><li><span class="n">2</span>La cámara muestra una silueta o un marco: haz que el vehículo o el dato quede dentro.</li><li><span class="n">3</span>El botón se activa cuando todo está en verde.</li><li><span class="n">4</span>No tienes que buscar ni describir daños: revisamos todas las fotos.</li></ul><p class="muted">Usaremos la cámara de tu celular: solo se aceptan fotos tomadas en el momento, no de la galería. Si tu celular lo pide, permite el acceso a la cámara.</p><button class="btn" onclick="ir(\'mapa\')">Ver el mapa de fotos</button>');
+  else if (S.paso === 'mapa') renderMapa();
+  else if (S.paso === 'revision') renderRevision();
+  else if (S.paso === 'declaracion') { app.innerHTML = shell('<h1>Declaración</h1><div class="card">Declaro que las fotos fueron tomadas hoy al vehículo ' + v.placa + ' y que la información entregada es verdadera.</div><div class="field"><label for="nom">Tu nombre completo</label><input id="nom" value="' + esc(S.declaracion.nombre || CASO.contacto) + '"></div><label class="chk"><input type="checkbox" id="acp"><span>Acepto la declaración</span></label><button class="btn" id="env" disabled>Enviar la inspección</button><p class="muted" id="red"></p>');
+    $('#acp').onchange = () => $('#env').disabled = !$('#acp').checked;
+    $('#env').onclick = () => { S.declaracion = { nombre: $('#nom').value.trim(), ok: true }; enviar(); }; }
+  else if (S.paso === 'enviado') { const e = S.enviado; app.innerHTML = shell('<div style="text-align:center;padding-top:30px"><div style="width:70px;height:70px;border-radius:50%;background:var(--ok);color:#fff;font-size:36px;display:grid;place-items:center;margin:0 auto 16px">✓</div><h1>¡Listo, ' + esc(CASO.contacto.split(' ')[0]) + '!</h1><p>Recibimos tu inspección del <b>' + esc(v.marca + ' ' + v.modelo) + '</b> el ' + esc(e.fecha) + '.</p><p class="muted">Un ejecutivo la revisará. Te avisaremos si necesitamos algo más.</p><button class="btn btn2" onclick="comprobante()">Descargar comprobante</button></div>' + demo(), 'Enviado'); }
+}
+function demo() { return '<div class="demo">Demostración (réplica del portal de SIRIUS, sin conexión con el back-office): <a href="#" onclick="reiniciar();return false">Empezar de nuevo</a><a href="#caducado" onclick="setTimeout(render)">Ver enlace vencido</a></div>'; }
+function reiniciar() { try { localStorage.removeItem(KEY); } catch (e) {} location.hash = ''; location.reload(); }
+// ---------- Mapa de captura ----------
+function renderMapa() {
+  const pasos = pasosFoto(), sig = pasos.find(id => !S.fotos[id]);
+  let marks = '';
+  DATA.pts.concat(S.cerca ? [{ paso: 'cerca_puerta_der', pos: [Math.round(186 * 340 / 320), 112] }] : []).forEach(m => {
+    const [x, y] = m.pos, done = S.fotos[m.paso], cur = m.paso === sig;
+    marks += '<g class="pt" tabindex="0" role="button" aria-label="' + esc(NOMBRES[m.paso]) + (done ? ', hecha' : cur ? ', siguiente' : '') + '" data-paso="' + m.paso + '">' +
+      (cur ? '<circle cx="' + x + '" cy="' + y + '" r="13" fill="#0B5CAD" opacity=".25"/>' : '') +
+      '<circle cx="' + x + '" cy="' + y + '" r="8.5" fill="' + (done ? '#1f7a5c' : cur ? '#0B5CAD' : '#ffffff') + '" stroke="' + (done ? '#ffffff' : '#0B5CAD') + '" stroke-width="2.2"/>' +
+      (done ? '<path d="M' + (x - 3.5) + ',' + y + ' l2.5,2.8 l5,-5.5" fill="none" stroke="#fff" stroke-width="2"/>' : '') + '</g>';
+  });
+  const svg = DATA.icono.replace(/viewBox="[^"]+"/, 'viewBox="-16 -16 ' + (DATA.vb[2] + 32) + ' ' + (DATA.vb[3] + 32) + '"').replace('</svg>', marks + '</svg>');
+  const docsH = DOCS.filter(([id]) => S.fotos[id]).length;
+  $('#app').innerHTML = shell('<h1>Fotos del vehículo</h1><p class="muted">Toca un punto para tomar esa foto. El azul es el siguiente.</p><div class="map">' + svg + '</div><div class="legend"><span><b style="color:#1f7a5c">●</b> Hecha</span><span><b style="color:#0B5CAD">●</b> Siguiente</span><span>○ Pendiente</span><span>' + hechas() + ' de ' + total() + '</span></div>' +
+    '<h2>Documentos (' + docsH + ' de ' + DOCS.length + ')</h2><ul class="list docs">' + DOCS.map(([id, n]) => '<li tabindex="0" role="button" data-paso="' + id + '"><span class="n" style="' + (S.fotos[id] ? '' : 'background:#eef2f6;color:#5b6b80') + '">' + (S.fotos[id] ? '✓' : '·') + '</span>' + n + '</li>').join('') + '</ul>' +
+    (sig ? '<button class="btn" onclick="abrirCamara(\'' + sig + '\')">Tomar: ' + esc(NOMBRES[sig]) + '</button>' : '') +
+    (hechas() === total() ? '<button class="btn" onclick="ir(\'revision\')">Revisar mis fotos</button>' : '<button class="btn btn2" onclick="ir(\'revision\')">Revisar lo tomado</button>'));
+  document.querySelectorAll('[data-paso]').forEach(el => { const f = () => abrirCamara(el.dataset.paso); el.addEventListener('click', f); el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); f(); } }); });
+}
+// ---------- Guía de cada paso ----------
+function guiaDe(id) {
+  if (id.startsWith('doc_')) return { tipo: 'documento', orient: 'horizontal' };
+  if (id === 'cerca_puerta_der') return { tipo: 'cerca', orient: 'horizontal' };
+  const m = DATA.pts.find(p => p.paso === id); const g = m ? m.guia : { tipo: 'marco', marco: 'libre' };
+  if (g.tipo === 'silueta') return { tipo: 'silueta', vista: g.vista, orient: g.orientacion };
+  return { tipo: g.marco, orient: g.orientacion || 'horizontal' };
+}
+function svgGuia(g) {
+  if (g.tipo === 'silueta') return DATA.guia[g.vista];
+  const k = '<g fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round"><path d="M20,45 L20,20 L45,20"/><path d="M255,20 L280,20 L280,45"/><path d="M280,135 L280,160 L255,160"/><path d="M45,160 L20,160 L20,135"/></g>';
+  const t = (s, y) => '<text x="150" y="' + y + '" fill="#fff" font-size="12" text-anchor="middle" font-family="Mulish,Arial" font-weight="700">' + s + '</text>';
+  if (g.tipo === 'placa') return '<svg viewBox="0 0 300 180">' + k + '<rect x="75" y="62" width="150" height="56" rx="6" fill="none" stroke="#7fe0b8" stroke-width="3"/>' + t('PLACA AQUÍ', 140) + '</svg>';
+  if (g.tipo === 'franja') return '<svg viewBox="0 0 300 180">' + k + '<rect x="40" y="74" width="220" height="32" rx="5" fill="none" stroke="#fff" stroke-width="2.5" stroke-dasharray="7 5"/>' + t('Número completo en la franja', 130) + '</svg>';
+  if (g.tipo === 'documento') return '<svg viewBox="0 0 300 180"><rect x="30" y="30" width="240" height="120" rx="10" fill="#ffffff12"/>' + k + t('Documento dentro del marco', 96) + '</svg>';
+  if (g.tipo === 'cerca') return '<svg viewBox="0 0 300 180">' + k + '<circle cx="150" cy="90" r="40" fill="none" stroke="#fff" stroke-width="2.5" stroke-dasharray="7 5"/>' + t('El daño al centro · a 50 cm', 160) + '</svg>';
+  return '<svg viewBox="0 0 300 180">' + k + '</svg>';
+}
+// ---------- Cámara ----------
+let stream = null, gps = null, timers = [];
+function textoDe(id, g) { if (g.tipo === 'silueta') return TEXTOS[g.vista.startsWith('lateral') ? 'lateral' : g.vista]; if (id.startsWith('doc_')) return TEXTOS.documento; if (g.tipo === 'cerca') return TEXTOS.cerca; return TEXTOS[g.tipo] || TEXTOS.libre; }
+async function abrirCamara(id) {
+  const g = guiaDe(id), nombre = NOMBRES[id] || (DOCS.find(d => d[0] === id) || [])[1];
+  const div = document.createElement('div'); div.className = 'cam'; div.setAttribute('role', 'dialog'); div.setAttribute('aria-label', 'Cámara: ' + nombre);
+  div.innerHTML = '<div class="sim"></div><div class="hdr"><button id="cx">‹ Mapa</button><b style="font-size:14px;text-align:center;flex:1;padding:0 8px">' + esc(nombre) + '</b><span style="width:60px"></span></div><div class="ov">' + svgGuia(g) + '</div><div class="chips" id="chips"></div><div class="tip">' + esc(textoDe(id, g)) + '</div><div class="shot"><button class="shutter" id="sh" aria-label="Tomar la foto" disabled></button></div>';
+  document.body.appendChild(div); document.body.style.overflow = 'hidden';
+  const cerrar = () => { timers.forEach(clearTimeout); timers = []; if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; } div.remove(); document.body.style.overflow = ''; };
+  div.querySelector('#cx').onclick = () => { cerrar(); renderMapa(); };
+  // Modo de captura: en vivo (https) o cámara nativa del celular (funciona también abriendo el archivo directo)
+  let video = null;
+  const enVivo = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.isSecureContext);
+  if (enVivo) {
+    try { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 } }, audio: false });
+      video = document.createElement('video'); video.setAttribute('playsinline', ''); video.muted = true; video.srcObject = stream; div.insertBefore(video, div.firstChild.nextSibling); await video.play().catch(() => {});
+    } catch (e) { cerrar(); return camaraNativa(id, g, nombre, e && e.name === 'NotAllowedError' ? 'No diste permiso para la cámara en vivo. Usaremos la cámara del celular.' : ''); }
+  } else { cerrar(); return camaraNativa(id, g, nombre, ''); }
+  if (!gps && navigator.geolocation) navigator.geolocation.getCurrentPosition(p => { gps = { lat: p.coords.latitude.toFixed(5), lng: p.coords.longitude.toFixed(5), prec: Math.round(p.coords.accuracy) }; }, () => { gps = { simulado: true, motivo: 'permiso rechazado' }; }, { timeout: 8000 });
+  // Validaciones en vivo (simuladas): encuadre, orientación, luz y nitidez
+  const est = { encuadre: false, luz: false, nitidez: false };
+  const orientOk = () => g.orient === 'vertical' ? innerHeight >= innerWidth : innerWidth > innerHeight;
+  const pinta = () => { const o = orientOk(), c = div.querySelector('#chips'); if (!c) return;
+    c.innerHTML = (o ? '<span class="chip ok">Orientación ✓</span>' : '<span class="chip wa">⟲ Gira el celular</span>') + (est.encuadre ? '<span class="chip ok">Encuadre ✓</span>' : '<span class="chip wa">' + (g.tipo === 'silueta' ? 'Encaja el vehículo en la silueta' : 'Centra en el marco') + '</span>') + (est.luz ? '<span class="chip ok">Luz ✓</span>' : '<span class="chip">Midiendo luz…</span>') + (est.nitidez ? '<span class="chip ok">Nitidez ✓</span>' : '<span class="chip">Enfocando…</span>');
+    div.querySelector('#sh').disabled = !(o && est.encuadre && est.luz && est.nitidez); };
+  timers.push(setTimeout(() => { est.luz = true; pinta(); }, 700), setTimeout(() => { est.nitidez = true; pinta(); }, 1200), setTimeout(() => { est.encuadre = true; pinta(); }, 1900));
+  addEventListener('resize', pinta); pinta();
+  div.querySelector('#sh').onclick = () => { const foto = capturar(video, nombre); cerrar(); revisar(id, nombre, foto); };
+}
+// Cámara nativa del celular: muestra la guía, abre la cámara del sistema (sin galería gracias a «capture») y vuelve con la foto real.
+function camaraNativa(id, g, nombre, msg) {
+  const div = document.createElement('div'); div.className = 'cam'; div.setAttribute('role', 'dialog'); div.setAttribute('aria-label', 'Cámara: ' + nombre);
+  div.innerHTML = '<div class="sim"></div><div class="hdr"><button id="cx">‹ Mapa</button><b style="font-size:14px;text-align:center;flex:1;padding:0 8px">' + esc(nombre) + '</b><span style="width:60px"></span></div><div class="ov">' + svgGuia(g) + '</div>' +
+    '<div class="tip nat">' + esc(textoDe(id, g)) + (g.orient === 'horizontal' ? '<br><span style="font-weight:600;font-size:13px">Toma la foto con el celular horizontal</span>' : '') + '</div>' +
+    '<div class="shot nat"><label class="btn" style="text-align:center;margin:0;max-width:360px;width:100%">Abrir la cámara<input id="inp" type="file" accept="image/*" capture="environment" style="display:none"></label>' +
+    '<button class="btn btn2" id="simf" style="margin:0;max-width:360px;background:transparent;color:#fff;border-color:#fff8;font-size:14px;padding:10px">Simular foto (solo para probar en computadora)</button></div>';
+  document.body.appendChild(div); document.body.style.overflow = 'hidden';
+  if (msg) aviso(div, msg);
+  if (!window.isSecureContext) { const a = document.createElement('div'); a.className = 'aviso-vivo'; a.textContent = 'Para ver la guía sobre la cámara en vivo, abre esta página desde una dirección https.'; div.appendChild(a); }
+  const cerrar = () => { div.remove(); document.body.style.overflow = ''; };
+  div.querySelector('#cx').onclick = () => { cerrar(); renderMapa(); };
+  div.querySelector('#simf').onclick = () => { const f = capturar(null, nombre); cerrar(); revisar(id, nombre, f, g); };
+  div.querySelector('#inp').onchange = async (ev) => {
+    const file = ev.target.files && ev.target.files[0]; if (!file) return;
+    const lim = Date.now() - 5 * 60 * 1000; // la foto debe ser del momento
+    const ex = await leerExif(file).catch(() => ({}));
+    const img = new Image(); img.onload = () => {
+      const W = 1280, sc = Math.min(1, W / Math.max(img.width, img.height)), c = document.createElement('canvas'); c.width = Math.round(img.width * sc); c.height = Math.round(img.height * sc);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(img.src);
+      const d = new Date(), p = n => String(n).padStart(2, '0');
+      const viejo = ex.fecha && ex.fecha.getTime() < lim;
+      const foto = { src: c.toDataURL('image/jpeg', .78), at: p(d.getDate()) + '/' + p(d.getMonth() + 1) + '/' + d.getFullYear() + ' · ' + p(d.getHours()) + ':' + p(d.getMinutes()),
+        gps: ex.lat != null ? ex.lat.toFixed(5) + ', ' + ex.lng.toFixed(5) + ' · de la foto' : (gps && !gps.simulado ? gps.lat + ', ' + gps.lng + ' · ± ' + gps.prec + ' m' : 'GPS no disponible (el celular no lo incluyó en la foto)'),
+        disp: (ex.modelo ? ex.modelo + ' · ' : '') + 'cámara del celular', real: true, vieja: viejo, horizontal: c.width > c.height };
+      cerrar(); revisar(id, nombre, foto, g);
+    }; img.src = URL.createObjectURL(file);
+  };
+}
+// Lector mínimo de EXIF (JPEG): fecha de captura, GPS y modelo, si el celular los incluye.
+function leerExif(file) {
+  return file.slice(0, 256 * 1024).arrayBuffer().then(buf => {
+    const v = new DataView(buf); if (v.getUint16(0) !== 0xFFD8) return {};
+    let o = 2; while (o < v.byteLength - 4) { const m = v.getUint16(o); if (m === 0xFFE1) break; o += 2 + v.getUint16(o + 2); }
+    if (o >= v.byteLength - 4 || v.getUint32(o + 4) !== 0x45786966) return {};
+    const t = o + 10, le = v.getUint16(t) === 0x4949, u16 = x => v.getUint16(x, le), u32 = x => v.getUint32(x, le);
+    const str = (x, n) => { let s = ''; for (let i = 0; i < n; i++) { const ch = v.getUint8(x + i); if (!ch) break; s += String.fromCharCode(ch); } return s; };
+    const ifd = (x) => { const r = {}, n = u16(x); for (let i = 0; i < n; i++) { const e = x + 2 + i * 12; r[u16(e)] = { tipo: u16(e + 2), n: u32(e + 4), off: e + 8 }; } return r; };
+    const val = (en) => { if (!en) return null; const size = { 2: 1, 3: 2, 4: 4, 5: 8 }[en.tipo] || 1, p = en.n * size > 4 ? t + u32(en.off) : en.off;
+      if (en.tipo === 2) return str(p, en.n); if (en.tipo === 3) return u16(p); if (en.tipo === 4) return u32(p);
+      if (en.tipo === 5) { const a = []; for (let i = 0; i < en.n; i++) a.push(u32(p + i * 8) / u32(p + i * 8 + 4)); return a; } return null; };
+    const r0 = ifd(t + u32(t + 4)), out = {}; out.modelo = val(r0[0x0110]) || '';
+    if (r0[0x8769]) { const ex = ifd(t + val(r0[0x8769])); const f = val(ex[0x9003]); if (f) { const m = f.match(/(\d+):(\d+):(\d+) (\d+):(\d+):(\d+)/); if (m) out.fecha = new Date(+m[1], m[2] - 1, +m[3], +m[4], +m[5], +m[6]); } }
+    if (r0[0x8825]) { const gp = ifd(t + val(r0[0x8825])); const la = val(gp[2]), lo = val(gp[4]); if (la && lo) { const dec = a => a[0] + a[1] / 60 + a[2] / 3600; out.lat = dec(la) * (val(gp[1]) === 'S' ? -1 : 1); out.lng = dec(lo) * (val(gp[3]) === 'W' ? -1 : 1); } }
+    return out;
+  });
+}
+function aviso(div, t) { const n = document.createElement('div'); n.className = 'notice'; n.textContent = t; div.appendChild(n); setTimeout(() => n.remove(), 6000); }
+function capturar(video, nombre) {
+  const c = document.createElement('canvas'), W = 640;
+  if (video && video.videoWidth) { const h = Math.round(W * video.videoHeight / video.videoWidth); c.width = W; c.height = h; c.getContext('2d').drawImage(video, 0, 0, W, h); }
+  else { c.width = W; c.height = 420; const x = c.getContext('2d'); const gr = x.createLinearGradient(0, 0, 0, 420); gr.addColorStop(0, '#9aa5b2'); gr.addColorStop(1, '#4b5868'); x.fillStyle = gr; x.fillRect(0, 0, W, 420); x.fillStyle = '#fff'; x.font = '700 26px Arial'; x.textAlign = 'center'; x.fillText('Foto simulada', W / 2, 190); x.font = '20px Arial'; x.fillText(nombre, W / 2, 228); }
+  const d = new Date(); const pad = n => String(n).padStart(2, '0');
+  return { src: c.toDataURL('image/jpeg', .72), at: pad(d.getDate()) + '/' + pad(d.getMonth() + 1) + '/' + d.getFullYear() + ' · ' + pad(d.getHours()) + ':' + pad(d.getMinutes()), gps: gps ? (gps.simulado ? 'GPS no disponible (' + gps.motivo + ')' : gps.lat + ', ' + gps.lng + ' · ± ' + gps.prec + ' m') : 'GPS pendiente', disp: navigator.userAgent.indexOf('iPhone') >= 0 ? 'iPhone · navegador' : navigator.userAgent.indexOf('Android') >= 0 ? 'Android · navegador' : 'Navegador', real: !!(video && video.videoWidth) };
+}
+function revisar(id, nombre, foto, g) {
+  g = g || guiaDe(id);
+  const div = document.createElement('div'); div.className = 'rev'; div.setAttribute('role', 'dialog');
+  const lec = LECTURAS[id];
+  const avisos = [];
+  if (foto.vieja) avisos.push('Esta foto no es de ahora: tómala de nuevo en este momento.');
+  if (g.orient === 'horizontal' && foto.horizontal === false) avisos.push('Esta foto debía ser horizontal.');
+  div.innerHTML = '<div style="position:relative;flex:1;min-height:0;display:flex"><img alt="' + esc(nombre) + '" src="' + foto.src + '" style="flex:1;min-height:0;object-fit:contain;width:100%"><div id="gv" style="position:absolute;inset:0;display:none;align-items:center;justify-content:center;opacity:.85;pointer-events:none">' + svgGuia(g).replace('<svg', '<svg style="width:86%;height:auto"') + '</div></div>' +
+    '<div class="bar"><b>' + esc(nombre) + '</b><div class="meta">' + foto.at + ' · ' + esc(foto.gps) + ' · ' + esc(foto.disp) + (foto.real ? '' : ' · simulada') + '</div>' +
+    (lec ? '<div class="tag o" style="margin-bottom:8px">' + esc(lec) + '</div>' : '') + avisos.map(a => '<div class="tag w" style="margin:0 6px 8px 0">' + esc(a) + '</div>').join('') +
+    '<label style="display:flex;gap:8px;align-items:center;font-size:13px;margin-bottom:6px"><input type="checkbox" id="cg"> Comparar con la guía</label>' +
+    '<div class="row"><button class="btn btn2" id="rp">Repetir</button><button class="btn" id="us"' + (foto.vieja ? ' disabled' : '') + '>Usar esta foto</button></div></div>';
+  document.body.appendChild(div);
+  div.querySelector('#cg').onchange = e => div.querySelector('#gv').style.display = e.target.checked ? 'flex' : 'none';
+  div.querySelector('#rp').onclick = () => { div.remove(); abrirCamara(id); };
+  div.querySelector('#us').onclick = () => { S.fotos[id] = foto; let nueva = false; if (!S.cerca && EXTERIORES.every(e => S.fotos[e])) { S.cerca = true; nueva = true; } guardar(); div.remove(); renderMapa(); if (nueva) avisoCerca(); };
+}
+function avisoCerca() { const m = document.querySelector('main'); m.insertAdjacentHTML('afterbegin', '<div class="card" role="status" style="background:#fdf3dc"><b>Una foto más de cerca</b><p style="margin:6px 0 0">En la foto lateral derecha vimos una posible marca en la <b>puerta delantera derecha</b>. Tómala de cerca. No tienes que buscar ni describir daños: revisamos todas las fotos.</p></div>'); }
+// ---------- Revisión, envío y comprobante ----------
+function renderRevision() {
+  const ids = pasosFoto().concat(DOCS.map(d => d[0])); const falta = ids.filter(id => !S.fotos[id]);
+  $('#app').innerHTML = shell('<h1>Revisa tus fotos</h1><p class="muted">' + (ids.length - falta.length) + ' de ' + ids.length + ' listas. Toca una foto para repetirla.</p><div class="gal">' + ids.map(id => { const f = S.fotos[id], n = NOMBRES[id] || (DOCS.find(d => d[0] === id) || [])[1]; return '<button data-id="' + id + '" aria-label="' + esc(n) + (f ? '' : ', falta') + '">' + (f ? (f.src ? '<img alt="" src="' + f.src + '">' : '') + '<i>✓</i>' : '') + '<span style="' + (f ? '' : 'color:#5b6b80;text-shadow:none') + '">' + esc(n) + '</span></button>'; }).join('') + '</div>' +
+    (falta.length ? '<p class="err" style="margin-top:10px">Faltan ' + falta.length + ' fotos.</p><button class="btn" onclick="ir(\'mapa\')">Volver al mapa</button>' : '<button class="btn" onclick="ir(\'declaracion\')">Continuar a la declaración</button>'));
+  document.querySelectorAll('.gal button').forEach(b => b.onclick = () => abrirCamara(b.dataset.id));
+}
+function enviar() {
+  const sigue = () => { const d = new Date(), p = n => String(n).padStart(2, '0'); S.enviado = { fecha: p(d.getDate()) + '/' + p(d.getMonth() + 1) + '/' + d.getFullYear() + ' · ' + p(d.getHours()) + ':' + p(d.getMinutes()) }; ir('enviado'); };
+  if (!navigator.onLine) { $('#red').textContent = 'Sin internet: guardamos tus fotos y las enviaremos al reconectar.'; addEventListener('online', sigue, { once: true }); return; }
+  $('#env').disabled = true; $('#env').textContent = 'Enviando…'; setTimeout(sigue, 1500);
+}
+function comprobante() {
+  const v = S.vehiculo || CASO.vehiculo; const ids = Object.keys(S.fotos);
+  const html = '<!doctype html><meta charset="utf-8"><title>Comprobante</title><body style="font-family:Arial;padding:24px"><h2>Aseguradora del Sur · Comprobante de autoinspección</h2><p>Caso ' + CASO.numero + ' · ' + esc(CASO.asegurado) + '<br>Vehículo ' + v.placa + ' · ' + esc(v.marca + ' ' + v.modelo + ' ' + v.anio) + '<br>Enviado el ' + S.enviado.fecha + ' por ' + esc(S.declaracion.nombre) + '<br>Fotos: ' + ids.length + (S.discrepancia ? '<br>Corrección del cliente: ' + esc(S.discrepancia) : '') + '</p><p style="color:#666">Demostración: réplica del portal de SIRIUS.</p></body>';
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([html], { type: 'text/html' })); a.download = 'comprobante-autoinspeccion-' + CASO.numero + '.html'; document.body.appendChild(a); a.click(); a.remove();
+}
+addEventListener('hashchange', render);
+render();
+</script>
+</body>
+</html>
