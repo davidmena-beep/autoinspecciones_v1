@@ -106,7 +106,7 @@ const CATALOGO_EXTRAS = ['Aros de aleación', 'Láminas de seguridad', 'Nebliner
 const EXTRAS_SOLICITUD = { sedan: ['Aros de aleación', 'Láminas de seguridad'], suv: ['Aros de aleación', 'Radio con pantalla'], camioneta: ['Barra antivuelco', 'Cubre balde', 'Estribos'], moto: [] };
 const ROTULO = { sedan: 'Sedán', suv: 'SUV o Jeep', camioneta: 'Camioneta', moto: 'Moto', cargadora: 'Cargadora', excavadora: 'Excavadora', montacargas: 'Montacargas', generico: 'Equipo genérico' };
 // Reglas de alerta (en SIRIUS: parametrizables en Formularios › Autoinspección › Controles)
-const REGLAS = { videoMinBytes: 1024 * 1024, vueltaMinGrados: 300, distanciaMaxM: 150, precisionMaxM: 100, minutosTotalMax: 30, minutosEntreFotosMax: 10, pantallaUmbral: 60, videoMaxBytes: 2 * 1024 * 1024, videoSeg: 25 };
+const REGLAS = { videoMinBytes: 4 * 1024 * 1024, vueltaMinGrados: 300, distanciaMaxM: 150, precisionMaxM: 100, minutosTotalMax: 30, minutosEntreFotosMax: 10, pantallaUmbral: 60, videoMaxBytes: 10 * 1024 * 1024, videoSeg: 45 };
 // =====================================================================
 const KEY = 'sirius-autoinspeccion-demo-v2';
 const nuevo = (tipo) => ({ tipo: tipo || 'camioneta', apariencia: 'ads', paso: 'inicio', consent: { datos: false, wa: false, sms: false }, fotos: {}, video: null, extras: null, eventos: [], estado: 'Enlace enviado', rechazos: {}, declaracion: { nombre: '' }, enviado: null, inicioMs: null });
@@ -126,7 +126,8 @@ const PASOS_VEH = [
   { id: 'exteriores_lateral_derecho', nombre: 'Lateral derecho', pos: [.5, 1.0], guia: { tipo: 'silueta', vista: 'lateral_der' }, grupo: 'Exterior', valida: 'lateral' },
   { id: 'motor_habitaculo_del_motor', nombre: 'Motor', pos: [.88, .5], guia: { tipo: 'libre' }, grupo: 'Motor y VIN', texto: 'Con el capó abierto, que se vea el motor completo.' },
   { id: 'identificacion_vin', nombre: 'VIN grabado', pos: [.8, .28], guia: { tipo: 'franja' }, ocr: 'vin', ayuda: true, grupo: 'Motor y VIN', valida: 'vin' },
-  { id: 'interiores_tablero_kilometraje', nombre: 'Tablero completo con kilometraje', guia: { tipo: 'tablero' }, ocr: 'km', grupo: 'Interior', valida: 'km', texto: 'Con el motor encendido: todo el tablero y que se lea el kilometraje.' },
+  { id: 'interiores_kilometraje', nombre: 'Kilometraje', guia: { tipo: 'franja' }, ocr: 'km', grupo: 'Interior', valida: 'km', texto: 'Con el motor encendido, acércate al odómetro: que se lea solo el kilometraje.' },
+  { id: 'interiores_tablero_completo', nombre: 'Tablero completo', guia: { tipo: 'libre' }, grupo: 'Interior', texto: 'Desde el asiento de atrás: el volante y todo el tablero en la imagen.' },
   { id: 'interiores_tablero_central', nombre: 'Tablero central con radio', guia: { tipo: 'libre' }, grupo: 'Interior', texto: 'La consola central con el radio o la pantalla encendidos.' },
   { id: 'llanta_emergencia', nombre: 'Llanta de emergencia', guia: { tipo: 'circulo' }, grupo: 'Interior', texto: 'Abre la cajuela o el compartimento y fotografía la llanta completa.' },
 ];
@@ -135,7 +136,7 @@ const PASOS_MOTO = [
   { id: 'exteriores_lateral_izquierdo', nombre: 'Lateral izquierdo', pos: [.5, 0], guia: { tipo: 'silueta', vista: 'lateral_izq' }, grupo: 'Exterior', valida: 'lateral' },
   { id: 'exteriores_posterior', nombre: 'Posterior', pos: [0, .5], guia: { tipo: 'silueta', vista: 'posterior' }, ocr: 'placa', grupo: 'Exterior', valida: 'posterior' },
   { id: 'exteriores_lateral_derecho', nombre: 'Lateral derecho', pos: [.5, 1.0], guia: { tipo: 'silueta', vista: 'lateral_der' }, grupo: 'Exterior', valida: 'lateral' },
-  { id: 'interiores_tablero_kilometraje', nombre: 'Tablero con kilometraje', pos: [.72, .5], guia: { tipo: 'tablero' }, ocr: 'km', grupo: 'Tablero', valida: 'km' },
+  { id: 'interiores_kilometraje', nombre: 'Kilometraje', pos: [.72, .5], guia: { tipo: 'franja' }, ocr: 'km', grupo: 'Tablero', valida: 'km', texto: 'Acércate al odómetro: que se lea solo el kilometraje.' },
   { id: 'motor_habitaculo_del_motor', nombre: 'Motor', pos: [.5, .5], guia: { tipo: 'libre' }, grupo: 'Motor y VIN' },
   { id: 'identificacion_vin', nombre: 'VIN grabado', pos: [.8, .8], guia: { tipo: 'franja' }, ocr: 'vin', ayuda: true, grupo: 'Motor y VIN', valida: 'vin' },
 ];
@@ -229,8 +230,8 @@ function renderMapa() {
     '<div class="map">' + svg + '</div><div class="legend"><span><b style="color:#1f7a5c">●</b> Hecha</span><span><b style="color:var(--p)">●</b> Siguiente</span><span>○ Pendiente</span></div>' +
     (sig ? '<button class="btn" onclick="abrirCamara(\'' + sig + '\')">Tomar: ' + esc(nombreDe(sig)) + '</button>' : '') +
     (PASOS().some(p => p.grupo === 'Interior') ? '<h2>Interior</h2><div class="docs">' + PASOS().filter(p => p.grupo === 'Interior').map(p => '<button class="doc ' + (S.fotos[p.id] ? 'ok' : '') + '" data-paso="' + p.id + '"><i>' + (S.fotos[p.id] ? '✓' : '+') + '</i>' + esc(p.nombre) + '</button>').join('') + '</div>' : '') +
-    (T().maq ? '' : '<h2>Extras</h2><div class="card" style="background:#eef5fd;margin-top:0"><b>¿Tu vehículo tiene estos extras?</b><p class="muted" style="margin:4px 0 0">Si no tiene alguno, márcalo como «No lo tengo»: no es obligatorio fotografiarlo y tu asesor revisará el dato. Si tiene otro que no aparece, agrégalo.</p></div>' + extrasDe().map((e, i) => { const id = idExtra(e.nombre), ok = S.fotos[id];
-        const cab = '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b>' + esc(e.nombre) + '</b>' + (e.solicitud ? '<span class="tag o">En tu póliza</span>' : '<span class="tag w">Agregado por ti</span>') + '</div>';
+    (T().maq ? '' : '<h2>Extras</h2><div class="card" style="background:#eef5fd;margin-top:0"><b>¿Tu vehículo tiene estos extras?</b><p class="muted" style="margin:4px 0 0">Estos extras fueron declarados al solicitar el seguro. Si tu vehículo no tiene alguno, márcalo «No lo tengo»: no es obligatorio fotografiarlo y tu asesor revisará el dato. Si tiene otro que no aparece, agrégalo.</p></div>' + extrasDe().map((e, i) => { const id = idExtra(e.nombre), ok = S.fotos[id];
+        const cab = '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b>' + esc(e.nombre) + '</b>' + (e.solicitud ? '<span class="tag o">Declarado en la solicitud</span>' : '<span class="tag w">Agregado por ti</span>') + '</div>';
         const sel = '<div style="display:flex;gap:6px;margin:8px 0"><button class="btn ' + (e.tiene === true ? '' : 'btn2') + '" style="margin:0;min-height:42px;flex:1" onclick="marcarExtra(' + i + ',true)">Lo tengo</button><button class="btn ' + (e.tiene === false ? '' : 'btn2') + '" style="margin:0;min-height:42px;flex:1" onclick="marcarExtra(' + i + ',false)">No lo tengo</button></div>';
         const si = e.tiene === true ? '<div class="field" style="margin:6px 0"><label for="em' + i + '">Marca</label><input id="em' + i + '" data-ex="' + i + '" data-k="marca" value="' + esc(e.marca) + '"></div><div class="field" style="margin:6px 0"><label for="ed' + i + '">Detalle (modelo, tamaño, color)</label><input id="ed' + i + '" data-ex="' + i + '" data-k="detalle" value="' + esc(e.detalle) + '"></div><button class="btn ' + (ok ? 'btn2' : '') + '" style="margin:0;min-height:44px" data-paso="' + id + '">' + (ok ? '✓ Foto lista · repetir' : 'Fotografiar') + '</button>' : '';
         const no = e.tiene === false ? '<div class="field" style="margin:6px 0"><label for="mo' + i + '">¿Por qué? (opcional)</label><select id="mo' + i + '" data-ex="' + i + '" data-k="motivo" style="width:100%;font:600 15px Mulish;padding:10px;border:1.5px solid var(--line);border-radius:10px;background:#fff"><option value="">Elige una opción</option>' + ['Nunca lo tuvo', 'Lo retiré', 'Está dañado', 'Otro'].map(m => '<option' + (e.motivo === m ? ' selected' : '') + '>' + m + '</option>').join('') + '</select></div>' + (e.solicitud ? '' : '') : '';
@@ -278,15 +279,43 @@ function cargarScript(src) { return new Promise((ok, mal) => { if (document.quer
 function cargarDetector() { if (detector || detectorEstado === 'cargando') return; detectorEstado = 'cargando';
   cargarScript('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js').then(() => cargarScript('https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js')).then(() => window.cocoSsd.load({ base: 'lite_mobilenet_v2' })).then(m => { detector = m; detectorEstado = 'listo'; }).catch(() => { detectorEstado = 'no disponible'; }); }
 let ocrWorker = null;
-async function ocr(canvas, tipo) {
-  try { await cargarScript('https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js');
-    if (!ocrWorker) { ocrWorker = await Tesseract.createWorker('eng'); await ocrWorker.setParameters({ tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-', tessedit_pageseg_mode: '7' }); }
-    const r = await ocrWorker.recognize(canvas); let txt = (r.data.text || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-    if (tipo === 'km') { const m = txt.match(/[0-9]{3,7}/); return { valor: m ? m[0] : null, conf: Math.round(r.data.confidence || 0) }; }
-    if (tipo === 'placa') { const m = txt.match(/[A-Z]{3}[0-9]{3,4}|[A-Z]{2}[0-9]{3}[A-Z]/); return { valor: m ? m[0] : txt.slice(0, 8), conf: Math.round(r.data.confidence || 0) }; }
-    const m = txt.replace(/[IOQ]/g, c => ({ I: '1', O: '0', Q: '0' }[c])).match(/[A-HJ-NPR-Z0-9]{17}/); return { valor: m ? m[0] : txt.slice(0, 17), conf: Math.round(r.data.confidence || 0) };
+// Prepara un recorte para OCR: escala de grises, estiramiento de contraste, umbral de Otsu, agrandado; opcionalmente invertido.
+function prepOcr(src, altoObjetivo, invertir) {
+  const sc = Math.max(1, altoObjetivo / src.height), c = document.createElement('canvas'); c.width = Math.round(src.width * sc); c.height = Math.round(src.height * sc);
+  const x = c.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(src, 0, 0, c.width, c.height); const im = x.getImageData(0, 0, c.width, c.height), d = im.data, n = d.length / 4, Y = new Uint8ClampedArray(n), hist = new Array(256).fill(0);
+  for (let i = 0, p = 0; i < d.length; i += 4, p++) { const v = Math.round(.299 * d[i] + .587 * d[i + 1] + .114 * d[i + 2]); Y[p] = v; hist[v]++; }
+  let lo = 0, hi = 255, acc = 0; for (let v = 0; v < 256; v++) { acc += hist[v]; if (acc > n * .02) { lo = v; break; } } acc = 0; for (let v = 255; v >= 0; v--) { acc += hist[v]; if (acc > n * .02) { hi = v; break; } }
+  const h2 = new Array(256).fill(0); for (let p = 0; p < n; p++) { Y[p] = Math.max(0, Math.min(255, (Y[p] - lo) * 255 / Math.max(1, hi - lo))); h2[Y[p]]++; }
+  let sum = 0; for (let v = 0; v < 256; v++) sum += v * h2[v]; let sB = 0, wB = 0, best = 0, th = 128; for (let v = 0; v < 256; v++) { wB += h2[v]; if (!wB) continue; const wF = n - wB; if (!wF) break; sB += v * h2[v]; const mB = sB / wB, mF = (sum - sB) / wF, bt = wB * wF * (mB - mF) * (mB - mF); if (bt > best) { best = bt; th = v; } }
+  for (let i = 0, p = 0; i < d.length; i += 4, p++) { let v = Y[p] > th ? 255 : 0; if (invertir) v = 255 - v; d[i] = d[i + 1] = d[i + 2] = v; d[i + 3] = 255; }
+  x.putImageData(im, 0, 0); return c;
+}
+// Busca en la parte inferior del contorno la zona con más «aspecto de texto» (bordes verticales densos sobre fondo claro): candidata a placa.
+function candidatosPlaca(src) {
+  const W = 200, H = Math.round(W * src.height / src.width), c = document.createElement('canvas'); c.width = W; c.height = H; const x = c.getContext('2d'); x.drawImage(src, 0, 0, W, H);
+  const d = x.getImageData(0, 0, W, H).data, Y = new Float32Array(W * H); for (let i = 0, p = 0; i < d.length; i += 4, p++) Y[p] = .299 * d[i] + .587 * d[i + 1] + .114 * d[i + 2];
+  const res = []; for (const fw of [.26, .34, .42]) { const ww = Math.round(W * fw), hh = Math.round(ww / 3); for (let y0 = Math.round(H * .35); y0 + hh < H; y0 += Math.max(2, Math.round(hh / 3))) for (let x0 = Math.round(W * .1); x0 + ww < W * .9; x0 += Math.max(2, Math.round(ww / 6))) {
+    let e = 0, br = 0; for (let y = y0 + 1; y < y0 + hh - 1; y++) for (let k = x0 + 1; k < x0 + ww - 1; k++) { const p = y * W + k; if (Math.abs(Y[p + 1] - Y[p - 1]) > 60) e++; br += Y[p]; }
+    const area = ww * hh, sc = (e / area) * (br / area > 110 ? 1.3 : .8); res.push({ sc, x: x0 / W, y: y0 / H, w: ww / W, h: hh / H }); } }
+  res.sort((a, b) => b.sc - a.sc); const out = []; for (const r of res) { if (out.length >= 3) break; if (!out.some(o => Math.abs(o.x - r.x) < .1 && Math.abs(o.y - r.y) < .08)) out.push(r); }
+  return out.map(r => { const cc = document.createElement('canvas'), mx = r.w * .08, my = r.h * .25; const sx = Math.max(0, (r.x - mx) * src.width), sy = Math.max(0, (r.y - my) * src.height), sw = Math.min(src.width - sx, (r.w + 2 * mx) * src.width), sh = Math.min(src.height - sy, (r.h + 2 * my) * src.height); cc.width = Math.round(sw); cc.height = Math.round(sh); cc.getContext('2d').drawImage(src, sx, sy, sw, sh, 0, 0, cc.width, cc.height); return cc; });
+}
+async function workerOcr() { await cargarScript('https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js'); if (!ocrWorker) ocrWorker = await Tesseract.createWorker('eng'); return ocrWorker; }
+async function leer(canvas, psm, lista) { const w = await workerOcr(); await w.setParameters({ tessedit_char_whitelist: lista, tessedit_pageseg_mode: String(psm) }); const r = await w.recognize(canvas); return { txt: (r.data.text || '').toUpperCase(), conf: Math.round(r.data.confidence || 0) }; }
+const conLimite = (p, ms) => Promise.race([p, new Promise(r => setTimeout(() => r({ valor: null, conf: 0, error: 'tiempo' }), ms))]);
+async function ocrInterno(canvas, tipo) {
+  try {
+    if (tipo === 'placa') { const re = /([A-Z]{3})[- ]?([0-9]{3,4})|([A-Z]{2})[- ]?([0-9]{3})[- ]?([A-Z])/;
+      // Por cada zona candidata: binariza y lee solo la línea principal (parte inferior: deja fuera «ECUADOR» y el marco).
+      const baja = (c, f) => { const o = document.createElement('canvas'), y0 = Math.round(c.height * f); o.width = c.width * 2; o.height = (c.height - y0) * 2; const x = o.getContext('2d'); x.imageSmoothingEnabled = false; x.drawImage(c, 0, y0, c.width, c.height - y0, 0, 0, o.width, o.height); return o; };
+      for (const cand of candidatosPlaca(canvas)) for (const inv of [false, true]) { const b = prepOcr(cand, 160, inv); for (const f of [.30, .36, 0]) { const r = await leer(f ? baja(b, f) : b, 7, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-'); const m = r.txt.replace(/\s+/g, ' ').match(re); if (m) return { valor: m[1] ? m[1] + m[2] : m[3] + m[4] + m[5], conf: r.conf, metodo: 'zona de placa' }; } }
+      return { valor: null, conf: 0 }; }
+    if (tipo === 'km') { let mejor = null; for (const inv of [false, true]) for (const psm of [11, 6]) { const r = await leer(prepOcr(canvas, 420, inv), psm, '0123456789KMkm '); const nums = (r.txt.match(/[0-9]{3,7}/g) || []).sort((a, b) => b.length - a.length); if (nums[0] && (!mejor || nums[0].length > mejor.valor.length)) mejor = { valor: nums[0], conf: r.conf }; if (mejor && mejor.valor.length >= 4) return mejor; } return mejor || { valor: null, conf: 0 }; }
+    let mejor = null; for (const inv of [false, true]) { const r = await leer(prepOcr(canvas, 80, inv), 7, 'ABCDEFGHJKLMNPRSTUVWXYZ0123456789'); const t2 = r.txt.replace(/[^A-Z0-9]/g, ''); const m = t2.match(/[A-HJ-NPR-Z0-9]{17}/); if (m) return { valor: m[0], conf: r.conf }; if (!mejor || t2.length > mejor.valor.length) mejor = { valor: t2.slice(0, 17), conf: r.conf }; }
+    return mejor;
   } catch (e) { return { valor: null, conf: 0, error: 'OCR no disponible' }; }
 }
+const ocr = (canvas, tipo) => conLimite(ocrInterno(canvas, tipo), tipo === 'placa' ? 25000 : 15000);
 let orient = { beta: null, gamma: null, mov: 0 };
 addEventListener('deviceorientation', e => { orient.beta = e.beta; orient.gamma = e.gamma; const h = e.webkitCompassHeading != null ? e.webkitCompassHeading : (e.alpha != null ? 360 - e.alpha : null); if (h != null) { if (orient.rumbo != null && orient.vuelta != null) { let d = h - orient.rumbo; if (d > 180) d -= 360; if (d < -180) d += 360; orient.vuelta += d; } orient.rumbo = h; } });
 addEventListener('devicemotion', e => { const a = e.acceleration; if (a && a.x != null) orient.mov = Math.hypot(a.x, a.y, a.z); });
@@ -405,11 +434,11 @@ async function abrirCamara(id, modo, sinAyuda) {
   man.onclick = () => tomar(true);
   function grabar() {
     const tipos = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4']; const mt = tipos.find(t => window.MediaRecorder && MediaRecorder.isTypeSupported(t)) || '';
-    try { rec = new MediaRecorder(stream, { mimeType: mt, videoBitsPerSecond: 550000 }); } catch (e) { aviso(div, 'Este navegador no permite grabar video aquí. Usaremos la cámara del celular.'); cerrar(); return camaraNativa(id, g, nombre, 'video'); }
+    try { rec = new MediaRecorder(stream, { mimeType: mt, videoBitsPerSecond: 1600000 }); } catch (e) { aviso(div, 'Este navegador no permite grabar video aquí. Usaremos la cámara del celular.'); cerrar(); return camaraNativa(id, g, nombre, 'video'); }
     chunks = []; recBytes = 0; recIni = Date.now(); orient.vuelta = 0; evento('Empezó a grabar el video'); sh.classList.add('rec'); sh.setAttribute('aria-label', 'Detener'); const ri = div.querySelector('#ri'); ri.style.display = 'block';
     rec.ondataavailable = e => { if (e.data && e.data.size) { chunks.push(e.data); recBytes += e.data.size; if (recBytes > REGLAS.videoMaxBytes * .94 && rec.state === 'recording') rec.stop(); } };
     rec.onstop = () => { const blob = new Blob(chunks, { type: mt || 'video/webm' }), seg = Math.round((Date.now() - recIni) / 1000), vuelta = orient.vuelta == null ? null : Math.abs(Math.round(orient.vuelta)); orient.vuelta = null; cerrar(); revisarVideo(blob, seg, vuelta); };
-    rec.start(500); const tick = () => { if (!rec || rec.state !== 'recording') return; const s = Math.round((Date.now() - recIni) / 1000), vu = Math.min(360, Math.abs(Math.round(orient.vuelta || 0))); ri.textContent = '● ' + s + ' s · ' + (recBytes / 1048576).toFixed(1) + ' MB (mín. 1) · vuelta ' + vu + '°'; if (s >= REGLAS.videoSeg) rec.stop(); else timers.push(setTimeout(tick, 300)); }; tick();
+    rec.start(500); const tick = () => { if (!rec || rec.state !== 'recording') return; const s = Math.round((Date.now() - recIni) / 1000), vu = Math.min(360, Math.abs(Math.round(orient.vuelta || 0))); ri.textContent = '● ' + s + ' s · ' + (recBytes / 1048576).toFixed(1) + ' MB (mín. 4) · vuelta ' + vu + '°'; if (s >= REGLAS.videoSeg) rec.stop(); else timers.push(setTimeout(tick, 300)); }; tick();
   }
   analizar();
 }
@@ -425,7 +454,7 @@ function camaraNativa(id, g, nombre, modo, msg) {
   const div = document.createElement('div'); div.className = 'cam'; div.setAttribute('role', 'dialog');
   const esVideo = modo === 'video';
   div.innerHTML = '<div class="sim"></div><div class="hdr"><button id="cx">‹ Volver</button><b>' + esc(nombre) + '</b><span style="width:66px"></span></div>' + (esVideo ? '' : '<div class="guide nat">' + svgGuia(g) + '</div>') +
-    '<div class="tip nat">' + esc(esVideo ? 'Graba caminando alrededor del vehículo, máximo 20 segundos.' : textoDe(g)) + (g.orient === 'horizontal' ? '<br><span style="font-weight:600;font-size:13px">Con el celular horizontal</span>' : '') + '</div>' +
+    '<div class="tip nat">' + esc(esVideo ? 'Graba una vuelta completa alrededor del vehículo, sin cortar.' : textoDe(g)) + (g.orient === 'horizontal' ? '<br><span style="font-weight:600;font-size:13px">Con el celular horizontal</span>' : '') + '</div>' +
     '<div class="shot nat"><label class="btn">' + (esVideo ? 'Grabar con la cámara' : 'Abrir la cámara') + '<input id="inp" type="file" accept="' + (esVideo ? 'video/*' : 'image/*') + '" capture="environment" style="display:none"></label></div>';
   document.body.appendChild(div); document.body.style.overflow = 'hidden';
   if (msg) aviso(div, msg); if (!window.isSecureContext) aviso(div, 'Para ver el contorno sobre la cámara en vivo, abre esta página desde una dirección https.');
@@ -456,14 +485,15 @@ async function validarContenido(id, canvas, recorte) {
       if (p.valida !== 'lateral' && asp > 2.1 && !moto) return { ok: false, motivo: 'Parece una foto lateral. Para ' + nom + ', ponte ' + (p.valida === 'frente' ? 'delante' : 'detrás') + ' del vehículo.', huella: hf };
       return { ok: true, huella: hf, conf: Math.round(v.score * 100) }; }
   }
-  if (p.valida === 'vin' && recorte) { const r = await ocr(recorte, 'vin'); if (!r.error && (!r.valor || r.valor.length < 11)) return { ok: false, motivo: 'No se lee un número de VIN. Acércate al número grabado y evita sombras o reflejos.', huella: hf, ocr: r }; return { ok: true, huella: hf, ocr: r }; }
-  if (p.valida === 'km' && recorte) { const r = await ocr(recorte, 'km'); if (!r.error && !r.valor) return { ok: false, motivo: 'No se lee el kilometraje. Enciende el motor y acércate al tablero.', huella: hf, ocr: r }; return { ok: true, huella: hf, ocr: r }; }
+  // VIN y kilometraje: si no se lee, no se rechaza (el OCR del celular puede fallar con una foto buena): se avisa y el cliente decide.
+  if (p.valida === 'vin' && recorte) { const r = await ocr(recorte, 'vin'); if (!r.valor || r.valor.length < 11) return { ok: false, suave: true, motivo: 'No pudimos leer el número del VIN. Si en tu foto se ve claro y completo, continúa; si no, acércate y evita sombras o reflejos.', huella: hf, ocr: r }; return { ok: true, huella: hf, ocr: r }; }
+  if (p.valida === 'km' && recorte) { const r = await ocr(recorte, 'km'); if (!r.valor) return { ok: false, suave: true, motivo: 'No pudimos leer el kilometraje. Si en tu foto se ve claro, continúa; si no, acércate al odómetro con el motor encendido.', huella: hf, ocr: r }; return { ok: true, huella: hf, ocr: r }; }
   return { ok: true, huella: hf };
 }
-function rechazo(id, motivo, alUsar) {
-  S.rechazos[id] = (S.rechazos[id] || 0) + 1; evento('Foto rechazada por validación', nombreDe(id) + ': ' + motivo); const div = document.createElement('div'); div.className = 'rev'; div.style.background = '#fff'; div.style.color = 'var(--ink)'; div.setAttribute('role', 'alertdialog');
-  div.innerHTML = '<div style="padding:24px;max-width:480px;margin:auto"><div style="width:64px;height:64px;border-radius:50%;background:#fdecea;color:var(--bad);display:grid;place-items:center;font-size:30px;font-weight:900;margin:10px auto 14px">!</div><h1 style="text-align:center">Repite esta foto</h1><p style="text-align:center">' + esc(motivo) + '</p><button class="btn" id="rp">Tomar de nuevo</button>' + (S.rechazos[id] >= 2 ? '<button class="btn btn3" id="ig">Mi foto es correcta: usarla igual</button><p class="muted" style="text-align:center;font-size:12px">Un ejecutivo la revisará.</p>' : '') + '</div>';
-  document.body.appendChild(div); div.querySelector('#rp').onclick = () => { div.remove(); abrirCamara(id, null, true); }; const ig = div.querySelector('#ig'); if (ig) ig.onclick = () => { div.remove(); evento('Usó una foto rechazada', nombreDe(id)); alUsar(); };
+function rechazo(id, motivo, alUsar, suave) {
+  S.rechazos[id] = (S.rechazos[id] || 0) + 1; evento(suave ? 'Lectura no lograda' : 'Foto rechazada por validación', nombreDe(id) + ': ' + motivo); const div = document.createElement('div'); div.className = 'rev'; div.style.background = '#fff'; div.style.color = 'var(--ink)'; div.setAttribute('role', 'alertdialog');
+  div.innerHTML = '<div style="padding:24px;max-width:480px;margin:auto"><div style="width:64px;height:64px;border-radius:50%;background:#fdecea;color:var(--bad);display:grid;place-items:center;font-size:30px;font-weight:900;margin:10px auto 14px">!</div><h1 style="text-align:center">' + (suave ? 'Revisa esta foto' : 'Repite esta foto') + '</h1><p style="text-align:center">' + esc(motivo) + '</p>' + (suave ? '<button class="btn" id="ig">Mi foto se ve bien: continuar</button><button class="btn btn2" id="rp">Tomar de nuevo</button>' : '<button class="btn" id="rp">Tomar de nuevo</button>' + (S.rechazos[id] >= 2 ? '<button class="btn btn2" id="ig">Mi foto es correcta: usarla igual</button><p class="muted" style="text-align:center;font-size:12px">Un ejecutivo la revisará.</p>' : '')) + '</div>';
+  document.body.appendChild(div); div.querySelector('#rp').onclick = () => { div.remove(); abrirCamara(id, null, true); }; const ig = div.querySelector('#ig'); if (ig) ig.onclick = () => { div.remove(); evento(suave ? 'Continuó sin lectura' : 'Usó una foto rechazada', nombreDe(id)); alUsar(!suave); };
 }
 // ---------- Revisión de la foto (el cliente no ve lecturas ni alertas) ----------
 function revisar(id, foto, g, recorte, recorteBase) {
@@ -479,23 +509,22 @@ function revisar(id, foto, g, recorte, recorteBase) {
   div.querySelector('#us').onclick = async () => { const us = div.querySelector('#us'); us.disabled = true; us.textContent = 'Revisando la foto…';
     const v = await validarContenido(id, recorteBase || recorte || foto._canvas, recorte); foto.huella = v.huella; if (v.ocr) foto.ocr = v.ocr; if (v.conf) foto.confVehiculo = v.conf;
     const aceptar = (forzada) => { if (forzada) foto.validacion = 'Rechazada por validación · usada por el cliente'; S.fotos[id] = foto; evento('Subió la foto', nombreDe(id) + ' · ' + foto.at.split(' · ')[1] + (foto.gps ? ' · ' + foto.gps.lat.toFixed(5) + ', ' + foto.gps.lng.toFixed(5) : ' · sin ubicación')); guardar(); renderMapa(); };
-    if (!v.ok) { div.remove(); return rechazo(id, v.motivo, () => aceptar(true)); }
+    if (!v.ok) { div.remove(); return rechazo(id, v.motivo, (forz) => { if (!forz) foto.validacion = 'Lectura no lograda en el celular · la hace el motor de SIRIUS'; aceptar(forz); }, v.suave); }
     div.remove(); aceptar(false);
     // Placa: se lee de la franja inferior central del contorno en el frente y la posterior (en segundo plano)
-    if (g.ocr === 'placa' && recorte) { const c2 = document.createElement('canvas'), w2 = recorte.width * .5, h2 = recorte.height * .42; c2.width = Math.round(w2); c2.height = Math.round(h2); c2.getContext('2d').drawImage(recorte, recorte.width * .25, recorte.height * .55, w2, h2, 0, 0, c2.width, c2.height);
-      ocr(c2, 'placa').then(r => { if (S.fotos[id]) { S.fotos[id].ocr = r; guardar(); } }); }
+    if (g.ocr === 'placa' && recorte) ocr(recorte, 'placa').then(r => { if (S.fotos[id]) { S.fotos[id].ocr = r; guardar(); evento(r.valor ? 'Leyó la placa' : 'No se leyó la placa', nombreDe(id) + (r.valor ? ': ' + r.valor : '')); } });
   };
 }
 // ---------- Video de 360° ----------
 function renderVideo() {
   const v = S.video;
-  $('#app').innerHTML = shell('<h1>Un video corto de 360°</h1><p>Graba <b>una vuelta completa</b> alrededor del vehículo, a unos 2 pasos y con el celular horizontal, sin cortar. Entre 1 y 2 MB (unos 15 a 25 segundos).</p><div class="anim" aria-hidden="true"><div class="orb"></div><div class="car">' + icono() + '</div><div class="ph"></div></div>' +
+  $('#app').innerHTML = shell('<h1>Un video corto de 360°</h1><p>Graba <b>una vuelta completa</b> alrededor del vehículo, a unos 2 pasos y con el celular horizontal, sin cortar. Al menos 4 MB (unos 20 a 40 segundos).</p><div class="anim" aria-hidden="true"><div class="orb"></div><div class="car">' + icono() + '</div><div class="ph"></div></div>' +
     (v ? '<div class="card"><b>Video listo</b><p class="muted" style="margin:4px 0 0">' + (v.seg ? v.seg + ' s · ' : '') + (v.bytes / 1048576).toFixed(1) + ' MB</p>' + (v.vuelta != null && v.vuelta < REGLAS.vueltaMinGrados ? '<p class="tag w" style="margin-top:6px">Parece que la vuelta no fue completa (' + v.vuelta + '°). Puedes grabarlo otra vez.</p>' : '') + (v.url ? '<video src="' + v.url + '" controls playsinline style="width:100%;border-radius:10px;margin-top:8px"></video>' : '') + '</div><button class="btn" onclick="ir(\'revision\')">Continuar</button><button class="btn btn2" onclick="abrirCamara(null,\'video\')">Grabar otra vez</button>'
       : '<button class="btn" onclick="abrirCamara(null,\'video\')">Grabar el video</button>') + '<button class="btn btn3" onclick="ir(\'mapa\')">Volver al mapa</button>');
 }
 function revisarVideo(blob, seg, vuelta) {
-  if (blob.size < REGLAS.videoMinBytes) { evento('Video rechazado', 'pesa ' + (blob.size / 1048576).toFixed(1) + ' MB (mínimo 1 MB)'); render(); setTimeout(() => alert('El video es muy corto (' + (blob.size / 1048576).toFixed(1) + ' MB). Graba la vuelta completa alrededor del vehículo: mínimo 1 MB.'), 50); return; }
-  if (blob.size > REGLAS.videoMaxBytes) { S.video = null; render(); setTimeout(() => alert('El video pesa ' + (blob.size / 1048576).toFixed(1) + ' MB. Graba uno más corto (máximo 2 MB).'), 50); return; }
+  if (blob.size < REGLAS.videoMinBytes) { evento('Video rechazado', 'pesa ' + (blob.size / 1048576).toFixed(1) + ' MB (mínimo 4 MB)'); render(); setTimeout(() => alert('El video es muy corto (' + (blob.size / 1048576).toFixed(1) + ' MB). Graba la vuelta completa alrededor del vehículo, sin cortar: mínimo 4 MB.'), 50); return; }
+  if (blob.size > REGLAS.videoMaxBytes) { S.video = null; render(); setTimeout(() => alert('El video pesa ' + (blob.size / 1048576).toFixed(1) + ' MB. Graba uno más corto (máximo 10 MB).'), 50); return; }
   evento('Subió el video', (seg ? seg + ' s · ' : '') + (blob.size / 1048576).toFixed(1) + ' MB' + (vuelta != null ? ' · vuelta de ' + vuelta + '°' : '')); S.video = { bytes: blob.size, seg, vuelta, t: Date.now(), url: URL.createObjectURL(blob), gps: gpsAct && !gpsAct.error ? { lat: gpsAct.lat, lng: gpsAct.lng } : null }; guardar(); ir('video');
 }
 // ---------- Revisión general, envío y comprobante ----------
@@ -521,8 +550,8 @@ function vistaCalificador() {
   if (c.placa) { tabla += (S.tipo !== 'moto' ? fila('Placa (foto del frente)', pD, c.placa) : '') + fila('Placa (foto posterior)', pT, c.placa); if (pD && pT && pD.valor && pT.valor && pD.valor !== pT.valor) al.push('La placa delantera (' + pD.valor + ') y la trasera (' + pT.valor + ') no coinciden'); }
   vins.forEach(([k, r]) => tabla += fila(nombreDe(k), r, c.vin));
   const km = f.interiores_kilometraje && f.interiores_kilometraje.ocr; if (km) tabla += '<tr><td>Kilometraje</td><td>' + esc(km.valor || '—') + (km.conf ? ' · ' + km.conf + ' %' : '') + '</td><td>—</td><td><span class="tag w">Revisar</span></td></tr>';
-  const ex = T().maq ? [] : extrasDe(); const exHtml = ex.length ? ex.map(e => '<tr><td>' + esc(e.nombre) + '</td><td>' + esc([e.marca, e.detalle].filter(Boolean).join(' · ') || '—') + '</td><td>' + (e.tiene === false ? '<span class="tag w">No lo tiene' + (e.motivo ? ': ' + esc(e.motivo) : '') + '</span>' : S.fotos[idExtra(e.nombre)] ? '<span class="tag o">Con foto</span>' : '<span class="tag b">Sin foto</span>') + ' ' + (e.solicitud ? '' : '<span class="tag w">No está en la solicitud</span>') + '</td></tr>').join('') : '<tr><td colspan="3" class="muted">Sin extras</td></tr>';
-  ex.filter(e => !e.solicitud).forEach(e => al.push('Extra declarado por el cliente que no está en la solicitud: ' + e.nombre));
+  const ex = T().maq ? [] : extrasDe(); const exHtml = ex.length ? ex.map(e => '<tr><td>' + esc(e.nombre) + '</td><td>' + esc([e.marca, e.detalle].filter(Boolean).join(' · ') || '—') + '</td><td>' + (e.tiene === false ? '<span class="tag w">No lo tiene' + (e.motivo ? ': ' + esc(e.motivo) : '') + '</span>' : S.fotos[idExtra(e.nombre)] ? '<span class="tag o">Con foto</span>' : '<span class="tag b">Sin foto</span>') + ' ' + (e.solicitud ? '' : '<span class="tag w">No estaba declarado</span>') + '</td></tr>').join('') : '<tr><td colspan="3" class="muted">Sin extras</td></tr>';
+  ex.filter(e => !e.solicitud).forEach(e => al.push('Extra agregado por el cliente (no estaba declarado): ' + e.nombre));
   const fs = Object.entries(f).filter(([k, v]) => v && v.t).sort((a, b) => a[1].t - b[1].t);
   const pant = fs.filter(([k, v]) => v.pantalla >= REGLAS.pantallaUmbral); pant.forEach(([k, v]) => al.push('Posible foto tomada a una pantalla: ' + nombreDe(k) + ' (indicio ' + v.pantalla + ' %)'));
   const conGps = fs.filter(([k, v]) => v.gps); if (conGps.length < fs.length) al.push((fs.length - conGps.length) + ' fotos sin ubicación');
@@ -530,7 +559,7 @@ function vistaCalificador() {
   if (fs.length > 1) { const tot = (fs[fs.length - 1][1].t - fs[0][1].t) / 60000; if (tot > REGLAS.minutosTotalMax) al.push('Las fotos tomaron ' + Math.round(tot) + ' minutos en total'); for (let i = 1; i < fs.length; i++) { const gap = (fs[i][1].t - fs[i - 1][1].t) / 60000; if (gap > REGLAS.minutosEntreFotosMax) al.push(Math.round(gap) + ' minutos entre «' + nombreDe(fs[i - 1][0]) + '» y «' + nombreDe(fs[i][0]) + '»'); } }
   fs.filter(([k, v]) => /no verificado/.test(v.validacion || '')).forEach(([k, v]) => al.push('Encuadre no verificado: ' + nombreDe(k)));
   if (!S.video) al.push('Sin video de 360°'); else if (S.video.vuelta != null && S.video.vuelta < REGLAS.vueltaMinGrados) al.push('Video incompleto: vuelta de ' + S.video.vuelta + '° (mínimo ' + REGLAS.vueltaMinGrados + '°)'); else if (S.video.vuelta == null) al.push('Video sin medición de vuelta: lo verifica el motor de análisis');
-  extrasDe().filter(e => e.solicitud && e.tiene === false).forEach(e => al.push('Extra de la póliza marcado «No lo tengo»: ' + e.nombre + (e.motivo ? ' (' + e.motivo + ')' : '')));
+  extrasDe().filter(e => e.solicitud && e.tiene === false).forEach(e => al.push('Extra declarado en la solicitud marcado «No lo tengo»: ' + e.nombre + (e.motivo ? ' (' + e.motivo + ')' : '')));
   Object.entries(f).filter(([k, v]) => v && /usada por el cliente/.test(v.validacion || '')).forEach(([k]) => al.push('Foto rechazada por la validación y usada igual: ' + nombreDe(k)));
   const danos = '<tr><td colspan="3" class="muted">En SIRIUS, el motor de daños analiza todas las fotos exteriores y propone las averías al calificador. Esta demostración no detecta daños.</td></tr>';
   const div = document.createElement('div'); div.className = 'rev'; div.style.background = '#fff'; div.style.color = 'var(--ink)'; div.style.overflow = 'auto';
