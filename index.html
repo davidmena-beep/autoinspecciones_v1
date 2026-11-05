@@ -102,12 +102,14 @@ const CASOS = {
   montacargas: { numero: '20204', contacto: 'Gabriela Andrade', asegurado: 'Constructora Amazonía Sacha S.A.', desc: 'Montacargas Toyota 8FGU25 2019', placa: null, vin: '8FGU2561884XXXXXX' },
   generico: { numero: '20212', contacto: 'Patricio Mena', asegurado: 'Eventos Andinos Cía. Ltda.', desc: 'Generador portátil Cummins C150 2020', placa: null, vin: 'CMN150D5L2004471X' },
 };
+const CATALOGO_EXTRAS = ['Aros de aleación', 'Láminas de seguridad', 'Neblineros', 'Estribos', 'Barra antivuelco', 'Cubre balde', 'Radio con pantalla', 'Cámara de retro', 'Sensores de parqueo', 'Portaequipaje', 'Sistema de sonido'];
+const EXTRAS_SOLICITUD = { sedan: ['Aros de aleación', 'Láminas de seguridad'], suv: ['Aros de aleación', 'Radio con pantalla'], camioneta: ['Barra antivuelco', 'Cubre balde', 'Estribos'], moto: [] };
 const ROTULO = { sedan: 'Sedán', suv: 'SUV o Jeep', camioneta: 'Camioneta', moto: 'Moto', cargadora: 'Cargadora', excavadora: 'Excavadora', montacargas: 'Montacargas', generico: 'Equipo genérico' };
 // Reglas de alerta (en SIRIUS: parametrizables en Formularios › Autoinspección › Controles)
 const REGLAS = { distanciaMaxM: 150, precisionMaxM: 100, minutosTotalMax: 30, minutosEntreFotosMax: 10, pantallaUmbral: 60, videoMaxBytes: 2 * 1024 * 1024, videoSeg: 25 };
 // =====================================================================
 const KEY = 'sirius-autoinspeccion-demo-v2';
-const nuevo = (tipo) => ({ tipo: tipo || 'camioneta', apariencia: 'ads', paso: 'inicio', consent: { datos: false, wa: false, sms: false }, fotos: {}, video: null, declaracion: { nombre: '' }, enviado: null, inicioMs: null });
+const nuevo = (tipo) => ({ tipo: tipo || 'camioneta', apariencia: 'ads', paso: 'inicio', consent: { datos: false, wa: false, sms: false }, fotos: {}, video: null, extras: null, declaracion: { nombre: '' }, enviado: null, inicioMs: null });
 let S = nuevo();
 try { const g = JSON.parse(localStorage.getItem(KEY) || 'null'); if (g) S = Object.assign(nuevo(), g); } catch (e) {}
 const guardar = () => { try { localStorage.setItem(KEY, JSON.stringify(Object.assign({}, S, { video: S.video ? Object.assign({}, S.video, { url: null }) : null }))); } catch (e) { try { const l = JSON.parse(JSON.stringify(S)); Object.values(l.fotos).forEach(f => f.src = f.mini || ''); l.video = null; localStorage.setItem(KEY, JSON.stringify(l)); } catch (e2) {} } };
@@ -116,21 +118,34 @@ const DOCS = () => T().maq ? [['doc_matricula', 'Matrícula o constancia de trá
   : [['doc_matricula_f', 'Matrícula (frente)'], ['doc_matricula_p', 'Matrícula (reverso)'], ['doc_cedula_f', 'Cédula (frente)'], ['doc_cedula_p', 'Cédula (reverso)'], ['doc_licencia_f', 'Licencia (frente)'], ['doc_licencia_p', 'Licencia (reverso)']];
 // Pasos de la autoinspección (en SIRIUS: Formularios › pasos de foto, columna Autoinspección; el Administrador activa o crea otros).
 // Posición = fracción del ancho y alto del ícono superior (frente a la derecha, lado izquierdo arriba).
-const PASOS_VEH = [
-  { id: 'exteriores_frontal', nombre: 'Frente', pos: [1.0, .5], guia: { tipo: 'silueta', vista: 'frente' }, ocr: 'placa' },
-  { id: 'exteriores_lateral_izquierdo', nombre: 'Lateral izquierdo', pos: [.5, 0], guia: { tipo: 'silueta', vista: 'lateral_izq' } },
-  { id: 'exteriores_posterior', nombre: 'Posterior', pos: [0, .5], guia: { tipo: 'silueta', vista: 'posterior' }, ocr: 'placa' },
-  { id: 'exteriores_lateral_derecho', nombre: 'Lateral derecho', pos: [.5, 1.0], guia: { tipo: 'silueta', vista: 'lateral_der' } },
-  { id: 'motor_habitaculo_del_motor', nombre: 'Motor', pos: [.84, .5], guia: { tipo: 'libre' } },
-  { id: 'vin', nombre: 'VIN o número de chasis', pos: [.68, .3], guia: { tipo: 'franja' }, ocr: 'vin', ayuda: true },
+const INTERIOR = [
+  { id: 'interiores_volante', nombre: 'Volante', pos: [.6, .3], guia: { tipo: 'circulo' }, grupo: 'Interior' },
+  { id: 'interiores_tablero_instrumentos', nombre: 'Tablero de instrumentos (testigos encendidos)', pos: [.66, .24], guia: { tipo: 'tablero' }, grupo: 'Interior', texto: 'Enciende el motor: deben verse los testigos.' },
+  { id: 'interiores_kilometraje', nombre: 'Kilometraje', pos: [.7, .36], guia: { tipo: 'tablero' }, ocr: 'km', grupo: 'Interior', texto: 'Con el motor encendido, que se lea el kilometraje.' },
+  { id: 'interiores_tablero_completo', nombre: 'Tablero completo', pos: [.66, .5], guia: { tipo: 'libre' }, grupo: 'Interior', texto: 'Desde el asiento de atrás, que se vea todo el tablero.' },
+  { id: 'interiores_tablero_central', nombre: 'Tablero central con radio', pos: [.62, .64], guia: { tipo: 'libre' }, grupo: 'Interior', texto: 'La consola central con el radio o la pantalla encendidos.' },
+  { id: 'interiores_asientos', nombre: 'Interior (asientos)', pos: [.42, .5], guia: { tipo: 'libre' }, grupo: 'Interior', texto: 'Desde la puerta trasera abierta, que se vean los asientos.' },
 ];
+const PASOS_VEH = [
+  { id: 'exteriores_frontal', nombre: 'Frente', pos: [1.0, .5], guia: { tipo: 'silueta', vista: 'frente' }, ocr: 'placa', grupo: 'Exterior' },
+  { id: 'exteriores_lateral_izquierdo', nombre: 'Lateral izquierdo', pos: [.5, 0], guia: { tipo: 'silueta', vista: 'lateral_izq' }, grupo: 'Exterior' },
+  { id: 'exteriores_posterior', nombre: 'Posterior', pos: [0, .5], guia: { tipo: 'silueta', vista: 'posterior' }, ocr: 'placa', grupo: 'Exterior' },
+  { id: 'exteriores_lateral_derecho', nombre: 'Lateral derecho', pos: [.5, 1.0], guia: { tipo: 'silueta', vista: 'lateral_der' }, grupo: 'Exterior' },
+  { id: 'llantas_delantera_derecha', nombre: 'Neumático delantero derecho', pos: [.78, 1.0], guia: { tipo: 'circulo' }, grupo: 'Exterior', texto: 'El neumático completo y la medida del costado legible.' },
+  { id: 'motor_habitaculo_del_motor', nombre: 'Motor', pos: [.88, .5], guia: { tipo: 'libre' }, grupo: 'Motor y VIN' },
+  { id: 'identificacion_vin', nombre: 'VIN grabado', pos: [.8, .28], guia: { tipo: 'franja' }, ocr: 'vin', ayuda: true, grupo: 'Motor y VIN' },
+].concat(INTERIOR).concat([
+  { id: 'llanta_emergencia', nombre: 'Llanta de emergencia', pos: [.1, .5], guia: { tipo: 'circulo' }, grupo: 'Interior', texto: 'Abre la cajuela o compartimento y fotografía la llanta completa.' },
+]);
 const PASOS_MOTO = [
-  { id: 'exteriores_frontal', nombre: 'Frente', pos: [1.0, .5], guia: { tipo: 'silueta', vista: 'frente' } },
-  { id: 'exteriores_lateral_izquierdo', nombre: 'Lateral izquierdo', pos: [.5, 0], guia: { tipo: 'silueta', vista: 'lateral_izq' } },
-  { id: 'exteriores_posterior', nombre: 'Posterior', pos: [0, .5], guia: { tipo: 'silueta', vista: 'posterior' }, ocr: 'placa' },
-  { id: 'exteriores_lateral_derecho', nombre: 'Lateral derecho', pos: [.5, 1.0], guia: { tipo: 'silueta', vista: 'lateral_der' } },
-  { id: 'motor_habitaculo_del_motor', nombre: 'Motor', pos: [.5, .5], guia: { tipo: 'libre' } },
-  { id: 'vin', nombre: 'VIN o número de chasis', pos: [.76, .5], guia: { tipo: 'franja' }, ocr: 'vin', ayuda: true },
+  { id: 'exteriores_frontal', nombre: 'Frente', pos: [1.0, .5], guia: { tipo: 'silueta', vista: 'frente' }, grupo: 'Exterior' },
+  { id: 'exteriores_lateral_izquierdo', nombre: 'Lateral izquierdo', pos: [.5, 0], guia: { tipo: 'silueta', vista: 'lateral_izq' }, grupo: 'Exterior' },
+  { id: 'exteriores_posterior', nombre: 'Posterior', pos: [0, .5], guia: { tipo: 'silueta', vista: 'posterior' }, ocr: 'placa', grupo: 'Exterior' },
+  { id: 'exteriores_lateral_derecho', nombre: 'Lateral derecho', pos: [.5, 1.0], guia: { tipo: 'silueta', vista: 'lateral_der' }, grupo: 'Exterior' },
+  { id: 'llantas_delantera_derecha', nombre: 'Neumático delantero', pos: [.92, .2], guia: { tipo: 'circulo' }, grupo: 'Exterior' },
+  { id: 'interiores_kilometraje', nombre: 'Tablero y kilometraje', pos: [.72, .5], guia: { tipo: 'tablero' }, ocr: 'km', grupo: 'Tablero' },
+  { id: 'motor_habitaculo_del_motor', nombre: 'Motor', pos: [.5, .5], guia: { tipo: 'libre' }, grupo: 'Motor y VIN' },
+  { id: 'identificacion_vin', nombre: 'VIN grabado', pos: [.8, .8], guia: { tipo: 'franja' }, ocr: 'vin', ayuda: true, grupo: 'Motor y VIN' },
 ];
 const PASOS_MAQ = [
   { id: 'eq_frontal', nombre: 'Frente', pos: [1.0, .5], guia: { tipo: 'silueta', vista: 'frente' } },
@@ -144,8 +159,10 @@ const PASOS_MAQ = [
   { id: 'eq_rodaje', nombre: 'Neumáticos u orugas', pos: [.28, .12], guia: { tipo: 'circulo' } },
 ];
 const PASOS = () => T().maq ? PASOS_MAQ : S.tipo === 'moto' ? PASOS_MOTO : PASOS_VEH;
-const pasoDe = id => PASOS().find(p => p.id === id);
-const pasosFoto = () => PASOS().map(p => p.id);
+const pasoDe = id => PASOS().find(p => p.id === id) || (id.indexOf('extra_') === 0 ? (e => e && { id, nombre: 'Extra: ' + e.nombre, guia: { tipo: 'libre' }, texto: 'Que se vea el extra completo y, si tiene, su marca.' })(extrasDe().find(x => idExtra(x.nombre) === id)) : null);
+const extrasDe = () => { if (T().maq) return []; if (!S.extras) S.extras = (EXTRAS_SOLICITUD[S.tipo] || []).map(n => ({ nombre: n, marca: '', detalle: '', solicitud: true })); return S.extras; };
+const idExtra = (n) => 'extra_' + n.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '_');
+const pasosFoto = () => PASOS().map(p => p.id).concat(extrasDe().map(e => idExtra(e.nombre)));
 const todos = () => pasosFoto().concat(DOCS().map(d => d[0]));
 const hechas = () => todos().filter(id => S.fotos[id]).length;
 const nombreDe = id => (pasoDe(id) || {}).nombre || (DOCS().find(d => d[0] === id) || [])[1] || NOMBRES[id] || id;
@@ -192,10 +209,10 @@ addEventListener('hashchange', render);
 function renderMapa() {
   const t = T(), pasos = pasosFoto(), sig = pasos.find(id => !S.fotos[id]);
   let marks = '';
-  PASOS().forEach(m => {
+  PASOS().filter(m => m.grupo !== 'Interior').forEach(m => {
     const x = Math.round(m.pos[0] * t.vb[2]), y = Math.round(m.pos[1] * t.vb[3]), done = S.fotos[m.id], cur = m.id === sig;
     marks += '<g class="pt" tabindex="0" role="button" aria-label="' + esc(m.nombre) + (done ? ', hecha' : cur ? ', siguiente' : '') + '" data-paso="' + m.id + '">' + (cur ? '<circle cx="' + x + '" cy="' + y + '" r="14" fill="var(--p)" opacity=".22"><animate attributeName="r" values="11;16;11" dur="1.6s" repeatCount="indefinite"/></circle>' : '') +
-      '<circle class="c" cx="' + x + '" cy="' + y + '" r="9" fill="' + (done ? '#1f7a5c' : cur ? 'var(--p)' : '#fff') + '" stroke="' + (done ? '#fff' : 'var(--p)') + '" stroke-width="2.4"/>' + (done ? '<path d="M' + (x - 3.5) + ',' + y + ' l2.5,2.8 l5,-5.5" fill="none" stroke="#fff" stroke-width="2"/>' : '') + '</g>';
+      '<circle class="c" cx="' + x + '" cy="' + y + '" r="8" fill="' + (done ? '#1f7a5c' : cur ? 'var(--p)' : '#fff') + '" stroke="' + (done ? '#fff' : 'var(--p)') + '" stroke-width="2.4"/>' + (done ? '<path d="M' + (x - 3.5) + ',' + y + ' l2.5,2.8 l5,-5.5" fill="none" stroke="#fff" stroke-width="2"/>' : '') + '</g>';
   });
   const svg = t.icono.replace(/viewBox="[^"]+"/, 'viewBox="-18 -18 ' + (t.vb[2] + 36) + ' ' + (t.vb[3] + 36) + '"').replace('</svg>', marks + '</svg>');
   const h = hechas(), tot = todos().length, pct = h / tot, R = 24, L = 2 * Math.PI * R;
@@ -203,16 +220,22 @@ function renderMapa() {
   $('#app').innerHTML = shell('<div class="ring"><svg viewBox="0 0 58 58" aria-hidden="true"><circle cx="29" cy="29" r="' + R + '" fill="none" stroke="#e3e9f0" stroke-width="7"/><circle cx="29" cy="29" r="' + R + '" fill="none" stroke="var(--p)" stroke-width="7" stroke-linecap="round" stroke-dasharray="' + (L * pct) + ' ' + L + '" transform="rotate(-90 29 29)"/></svg><div><b>' + h + ' de ' + tot + ' fotos</b><span class="muted">' + (sig ? 'Toca un punto o sigue con el azul' : (docs.every(d => S.fotos[d[0]]) ? 'Fotos completas' : 'Faltan documentos')) + '</span></div></div>' +
     '<div class="map">' + svg + '</div><div class="legend"><span><b style="color:#1f7a5c">●</b> Hecha</span><span><b style="color:var(--p)">●</b> Siguiente</span><span>○ Pendiente</span></div>' +
     (sig ? '<button class="btn" onclick="abrirCamara(\'' + sig + '\')">Tomar: ' + esc(nombreDe(sig)) + '</button>' : '') +
+    (PASOS().some(p => p.grupo === 'Interior') ? '<h2>Interior</h2><div class="docs">' + PASOS().filter(p => p.grupo === 'Interior').map(p => '<button class="doc ' + (S.fotos[p.id] ? 'ok' : '') + '" data-paso="' + p.id + '"><i>' + (S.fotos[p.id] ? '✓' : '+') + '</i>' + esc(p.nombre) + '</button>').join('') + '</div>' : '') +
+    (T().maq ? '' : '<h2>Extras</h2><p class="muted" style="margin:-4px 0 8px">Declara los accesorios que tiene el vehículo: cada uno se detalla y se fotografía.</p>' + extrasDe().map((e, i) => { const id = idExtra(e.nombre), ok = S.fotos[id]; return '<div class="card" style="margin:8px 0;padding:12px"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b>' + esc(e.nombre) + '</b>' + (e.solicitud ? '<span class="tag o">En la solicitud</span>' : '<span class="tag w">Agregado por ti</span>') + '</div><div class="field" style="margin:8px 0"><label for="em' + i + '">Marca</label><input id="em' + i + '" data-ex="' + i + '" data-k="marca" value="' + esc(e.marca) + '"></div><div class="field" style="margin:8px 0"><label for="ed' + i + '">Detalle (modelo, tamaño, color)</label><input id="ed' + i + '" data-ex="' + i + '" data-k="detalle" value="' + esc(e.detalle) + '"></div><div style="display:flex;gap:8px"><button class="btn ' + (ok ? 'btn2' : '') + '" style="margin:0;min-height:44px" data-paso="' + id + '">' + (ok ? '✓ Foto lista · repetir' : 'Fotografiar') + '</button>' + (e.solicitud ? '' : '<button class="btn btn3" style="margin:0;min-height:44px;width:auto" onclick="quitarExtra(' + i + ')">Quitar</button>') + '</div></div>'; }).join('') +
+      '<div style="display:flex;gap:8px;align-items:center"><select id="nuevoExtra" style="flex:1;font:600 15px Mulish;padding:12px;border:1.5px solid var(--line);border-radius:12px;background:#fff"><option value="">Agregar un extra del catálogo…</option>' + CATALOGO_EXTRAS.filter(n => !extrasDe().some(e => e.nombre === n)).map(n => '<option>' + esc(n) + '</option>').join('') + '</select><button class="btn" style="width:auto;margin:0;min-height:48px" onclick="agregarExtra()">Agregar</button></div>') +
     '<h2>Documentos</h2><div class="docs">' + docs.map(([id, n]) => '<button class="doc ' + (S.fotos[id] ? 'ok' : '') + '" data-paso="' + id + '"><i>' + (S.fotos[id] ? '✓' : '+') + '</i>' + esc(n) + '</button>').join('') + '</div>' +
     (h === tot ? '<button class="btn" onclick="ir(\'video\')">Siguiente: video de 360°</button>' : '<button class="btn btn3" onclick="ir(\'revision\')">Ver lo que llevo</button>'));
   document.querySelectorAll('[data-paso]').forEach(el => { const f = () => abrirCamara(el.dataset.paso); el.addEventListener('click', f); el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); f(); } }); });
 }
+function agregarExtra() { const v = $('#nuevoExtra').value; if (!v) return; extrasDe().push({ nombre: v, marca: '', detalle: '', solicitud: false }); guardar(); renderMapa(); }
+function quitarExtra(i) { const e = extrasDe()[i]; if (!e || e.solicitud) return; delete S.fotos[idExtra(e.nombre)]; S.extras.splice(i, 1); guardar(); renderMapa(); }
+document.addEventListener('input', ev => { const el = ev.target; if (el.dataset && el.dataset.ex != null) { const e = extrasDe()[+el.dataset.ex]; if (e) { e[el.dataset.k] = el.value; guardar(); } } });
 // ---------- Guías ----------
 function guiaDe(id) {
   // Experiencia: todas las fotos del vehículo o equipo en horizontal; documentos en vertical, al final.
   if (id.startsWith('doc_')) return { tipo: 'documento', orient: 'vertical' };
   const p = pasoDe(id) || { guia: { tipo: 'libre' } };
-  return Object.assign({ orient: 'horizontal', ocr: p.ocr || null, ayuda: !!p.ayuda }, p.guia);
+  return Object.assign({ orient: 'horizontal', ocr: p.ocr || null, ayuda: !!p.ayuda, texto: p.texto || null }, p.guia);
 }
 function svgGuia(g) {
   if (g.tipo === 'silueta') { const base = g.vista.indexOf('lateral') === 0 ? 'lateral' : g.vista, vb = T().vbs[base], d = T().contorno[base], izq = g.vista === 'lateral_izq';
@@ -231,7 +254,7 @@ function svgGuia(g) {
   return '<svg viewBox="0 0 300 180">' + k + '</svg>';
 }
 const TEXTOS = { frente: 'Ponte de frente, a unos 3 pasos.', posterior: 'Ponte detrás, a unos 3 pasos.', lateral: 'Aléjate hasta que el vehículo entero quepa en el contorno.', placa: 'La placa dentro del recuadro, sin reflejo.', franja: 'El número completo dentro de la franja.', libre: 'Centra lo que se pide en el marco.', documento: 'Sobre una superficie plana, sin dedos encima.', cerca: 'Toma de cerca, de frente, con tu mano o una tarjeta como referencia.', circulo: 'El neumático completo dentro del círculo.', tablero: 'Enciende el motor: que se lea el kilometraje u horómetro.' };
-function textoDe(g) { if (g.tipo === 'silueta') return TEXTOS[g.vista.indexOf('lateral') === 0 ? 'lateral' : g.vista] || TEXTOS.libre; return TEXTOS[g.tipo] || TEXTOS.libre; }
+function textoDe(g) { if (g.texto) return g.texto; if (g.tipo === 'silueta') return TEXTOS[g.vista.indexOf('lateral') === 0 ? 'lateral' : g.vista] || TEXTOS.libre; return TEXTOS[g.tipo] || TEXTOS.libre; }
 // ---------- Sensores, detector y OCR (bajo demanda) ----------
 let stream = null, gpsAct = null, timers = [], watchId = null;
 function vigilarGps() { if (watchId != null || !navigator.geolocation) return; watchId = navigator.geolocation.watchPosition(p => { gpsAct = { lat: p.coords.latitude, lng: p.coords.longitude, prec: Math.round(p.coords.accuracy), t: Date.now() }; }, () => { gpsAct = { error: true }; }, { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }); }
@@ -244,6 +267,7 @@ async function ocr(canvas, tipo) {
   try { await cargarScript('https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js');
     if (!ocrWorker) { ocrWorker = await Tesseract.createWorker('eng'); await ocrWorker.setParameters({ tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-', tessedit_pageseg_mode: '7' }); }
     const r = await ocrWorker.recognize(canvas); let txt = (r.data.text || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (tipo === 'km') { const m = txt.match(/[0-9]{3,7}/); return { valor: m ? m[0] : null, conf: Math.round(r.data.confidence || 0) }; }
     if (tipo === 'placa') { const m = txt.match(/[A-Z]{3}[0-9]{3,4}|[A-Z]{2}[0-9]{3}[A-Z]/); return { valor: m ? m[0] : txt.slice(0, 8), conf: Math.round(r.data.confidence || 0) }; }
     const m = txt.replace(/[IOQ]/g, c => ({ I: '1', O: '0', Q: '0' }[c])).match(/[A-HJ-NPR-Z0-9]{17}/); return { valor: m ? m[0] : txt.slice(0, 17), conf: Math.round(r.data.confidence || 0) };
   } catch (e) { return { valor: null, conf: 0, error: 'OCR no disponible' }; }
@@ -271,15 +295,17 @@ function indicioPantalla(canvas) {
 }
 // ---------- Ayuda: dónde encontrar el VIN o la serie ----------
 function ayudaVin(id, seguir) {
-  const vb = T().vbs.lateral, d = T().contorno.lateral, maq = T().maq, moto = S.tipo === 'moto';
-  const puntos = maq ? [[.45, .62, 'En el chasis, junto a la cabina: placa metálica del fabricante con la serie'], [.5, .32, 'Dentro de la cabina, en el marco o bajo el asiento']]
-    : moto ? [[.73, .36, 'En el tubo de dirección, bajo el manubrio (número grabado en relieve)'], [.47, .62, 'En el chasis, cerca del motor']]
-    : [[.67, .42, 'En la base del parabrisas, lado del conductor: se lee desde afuera'], [.47, .6, 'En el marco de la puerta del conductor (sticker)'], [.86, .58, 'En el compartimento del motor, grabado en relieve en el chasis']];
-  const mk = puntos.map((p, i) => '<g><circle cx="' + (p[0] * vb[2]) + '" cy="' + (p[1] * vb[3]) + '" r="9" fill="var(--p)" stroke="#fff" stroke-width="2"/><text x="' + (p[0] * vb[2]) + '" y="' + (p[1] * vb[3] + 4) + '" fill="#fff" font-size="11" font-weight="900" text-anchor="middle" font-family="Mulish,Arial">' + (i + 1) + '</text></g>').join('');
+  const t0 = T(), maq = t0.maq, moto = S.tipo === 'moto', pick = S.tipo === 'camioneta', vb = t0.vb, d = t0.contorno.superior;
+  // Ubicaciones del número grabado (no se aceptan stickers). Posición sobre la vista superior: frente a la derecha, lado del conductor arriba.
+  const puntos = maq ? [[.45, .78, 'En el chasis, junto a la cabina: placa metálica del fabricante con la serie grabada'], [.5, .3, 'Dentro de la cabina, en el marco o bajo el asiento']]
+    : moto ? [[.78, .5, 'En el tubo de dirección, bajo el manubrio, grabado en el metal'], [.5, .5, 'En el chasis junto al motor, grabado']]
+    : [[.66, .22, 'Plaqueta en la base del parabrisas, lado del conductor: se lee desde afuera'], [.76, .5, 'Pared de fuego: la lámina entre el motor y la cabina, grabado en el metal'], [.84, .26, 'Torre del amortiguador delantero (domo), dentro del capó'], [.5, .74, 'Piso bajo el asiento del copiloto: levanta la tapa de la alfombra']]
+      .concat(pick ? [[.7, .96, 'Larguero del chasis, lado derecho, detrás de la rueda delantera']] : []);
+  const mk = puntos.map((p, i) => '<g><circle cx="' + (p[0] * vb[2]) + '" cy="' + (p[1] * vb[3]) + '" r="10" fill="var(--p)" stroke="#fff" stroke-width="2.5"/><text x="' + (p[0] * vb[2]) + '" y="' + (p[1] * vb[3] + 4.5) + '" fill="#fff" font-size="12" font-weight="900" text-anchor="middle" font-family="Mulish,Arial">' + (i + 1) + '</text></g>').join('');
   const div = document.createElement('div'); div.className = 'rev'; div.style.background = '#fff'; div.style.color = 'var(--ink)'; div.style.overflow = 'auto'; div.setAttribute('role', 'dialog');
-  div.innerHTML = '<div style="padding:20px;max-width:520px;margin:0 auto"><h1>¿Dónde está ' + (maq ? 'la serie' : 'el VIN') + '?</h1><p class="muted">' + (maq ? 'Es el número de serie del fabricante (17 caracteres en la mayoría de equipos).' : 'Es el número de 17 caracteres que identifica al vehículo. Basta con fotografiar uno de estos lugares:') + '</p>' +
-    '<div class="card"><svg viewBox="' + vb.join(' ') + '" style="width:100%;height:auto"><path d="' + d + '" fill="#f4f7fa" stroke="#2f3e52" stroke-width="1.6"/>' + mk + '</svg></div>' +
-    '<ul class="list">' + puntos.map((p, i) => '<li><span class="n">' + (i + 1) + '</span>' + esc(p[2]) + '</li>').join('') + '</ul><p class="muted">También aparece en la matrícula.</p>' +
+  div.innerHTML = '<div style="padding:20px;max-width:520px;margin:0 auto"><h1>¿Dónde está ' + (maq ? 'la serie' : 'el VIN') + '?</h1><p>' + (maq ? 'Es el número de serie del fabricante.' : 'Es el número de 17 caracteres que identifica al vehículo.') + ' <b>Fotografía el número grabado en el metal' + (maq || moto ? '' : ' o la plaqueta del parabrisas') + '.</b> No se aceptan stickers ni etiquetas.</p>' +
+    '<div class="card" style="padding:10px"><svg viewBox="' + (-14) + ' ' + (-14) + ' ' + (vb[2] + 28) + ' ' + (vb[3] + 28) + '" style="width:100%;height:auto"><path d="' + d + '" fill="#f4f7fa" stroke="#2f3e52" stroke-width="1.8"/><text x="' + (vb[2] - 4) + '" y="' + (vb[3] / 2 + 4) + '" font-size="10" fill="#5b6b80" text-anchor="end" font-family="Mulish,Arial">frente ›</text>' + mk + '</svg><p class="muted" style="margin:6px 0 0;font-size:12px">Vista desde arriba. El conductor va del lado superior.</p></div>' +
+    '<ul class="list">' + puntos.map((p, i) => '<li><span class="n">' + (i + 1) + '</span>' + esc(p[2]) + '</li>').join('') + '</ul><p class="muted">Basta con uno. Si no lo encuentras, también figura en la matrícula.</p>' +
     '<button class="btn" id="ok">Abrir la cámara</button><button class="btn btn3" id="no">Volver</button></div>';
   document.body.appendChild(div);
   div.querySelector('#ok').onclick = () => { div.remove(); seguir(); }; div.querySelector('#no').onclick = () => div.remove();
@@ -443,6 +469,9 @@ function vistaCalificador() {
   let tabla = '';
   if (c.placa) { tabla += (S.tipo !== 'moto' ? fila('Placa (foto del frente)', pD, c.placa) : '') + fila('Placa (foto posterior)', pT, c.placa); if (pD && pT && pD.valor && pT.valor && pD.valor !== pT.valor) al.push('La placa delantera (' + pD.valor + ') y la trasera (' + pT.valor + ') no coinciden'); }
   vins.forEach(([k, r]) => tabla += fila(nombreDe(k), r, c.vin));
+  const km = f.interiores_kilometraje && f.interiores_kilometraje.ocr; if (km) tabla += '<tr><td>Kilometraje</td><td>' + esc(km.valor || '—') + (km.conf ? ' · ' + km.conf + ' %' : '') + '</td><td>—</td><td><span class="tag w">Revisar</span></td></tr>';
+  const ex = T().maq ? [] : extrasDe(); const exHtml = ex.length ? ex.map(e => '<tr><td>' + esc(e.nombre) + '</td><td>' + esc([e.marca, e.detalle].filter(Boolean).join(' · ') || '—') + '</td><td>' + (S.fotos[idExtra(e.nombre)] ? '<span class="tag o">Con foto</span>' : '<span class="tag b">Sin foto</span>') + ' ' + (e.solicitud ? '' : '<span class="tag w">No está en la solicitud</span>') + '</td></tr>').join('') : '<tr><td colspan="3" class="muted">Sin extras</td></tr>';
+  ex.filter(e => !e.solicitud).forEach(e => al.push('Extra declarado por el cliente que no está en la solicitud: ' + e.nombre));
   const fs = Object.entries(f).filter(([k, v]) => v && v.t).sort((a, b) => a[1].t - b[1].t);
   const pant = fs.filter(([k, v]) => v.pantalla >= REGLAS.pantallaUmbral); pant.forEach(([k, v]) => al.push('Posible foto tomada a una pantalla: ' + nombreDe(k) + ' (indicio ' + v.pantalla + ' %)'));
   const conGps = fs.filter(([k, v]) => v.gps); if (conGps.length < fs.length) al.push((fs.length - conGps.length) + ' fotos sin ubicación');
@@ -453,7 +482,7 @@ function vistaCalificador() {
   const danos = '<tr><td colspan="3" class="muted">En SIRIUS, el motor de daños analiza todas las fotos exteriores y propone las averías al calificador. Esta demostración no detecta daños.</td></tr>';
   const div = document.createElement('div'); div.className = 'rev'; div.style.background = '#fff'; div.style.color = 'var(--ink)'; div.style.overflow = 'auto';
   div.innerHTML = '<div style="padding:18px;max-width:640px;margin:0 auto"><h1>Lo que recibe el calificador</h1><p class="muted">Solo lo ve el calificador en SIRIUS; el cliente no ve estas lecturas ni alertas.</p><h2>Lecturas (OCR)</h2><table class="cal"><tr><th>Dato</th><th>Leído</th><th>Solicitud</th><th></th></tr>' + (tabla || '<tr><td colspan="4" class="muted">Sin lecturas</td></tr>') + '</table>' +
-    '<h2>Alertas (' + al.length + ')</h2>' + (al.length ? '<ul class="list">' + al.map(a => '<li><span class="tag w">!</span>' + esc(a) + '</li>').join('') + '</ul>' : '<p class="muted">Sin alertas</p>') + '<h2>Daños detectados</h2><table class="cal">' + danos + '</table><button class="btn" id="cerrarCal">Cerrar</button></div>';
+    '<h2>Alertas (' + al.length + ')</h2>' + (al.length ? '<ul class="list">' + al.map(a => '<li><span class="tag w">!</span>' + esc(a) + '</li>').join('') + '</ul>' : '<p class="muted">Sin alertas</p>') + '<h2>Extras declarados</h2><table class="cal">' + exHtml + '</table><h2>Daños detectados</h2><table class="cal">' + danos + '</table><button class="btn" id="cerrarCal">Cerrar</button></div>';
   document.body.appendChild(div); div.querySelector('#cerrarCal').onclick = () => div.remove();
 }
 render();
