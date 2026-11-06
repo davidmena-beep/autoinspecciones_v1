@@ -382,12 +382,13 @@ async function abrirCamara(id, modo, sinAyuda) {
     '<div class="hdr"><button id="cx">‹ Volver</button><b>' + esc(nombre) + '</b><span style="width:66px"></span></div><div class="chips" id="chips" aria-live="polite"></div><div class="nivel" aria-hidden="true"><i id="nv"></i></div>' +
     (modo === 'video' ? '<div class="recinfo" id="ri" style="display:none"></div>' : '') +
     '<div class="tip" id="tip">' + esc(modo === 'video' ? 'Camina alrededor del vehículo a 2 pasos, con el celular horizontal.' : textoDe(g)) + '</div><div class="shot"><button class="manual" id="man">Tomar igual</button><button class="shutter" id="sh" aria-label="' + (modo === 'video' ? 'Grabar' : 'Tomar la foto') + '" disabled></button></div>' +
-    '<div class="rotar" id="rot"><svg viewBox="0 0 64 64" aria-hidden="true"><rect x="20" y="6" width="24" height="44" rx="4" fill="none" stroke="#fff" stroke-width="3"/><circle cx="32" cy="43" r="2" fill="#fff"/></svg><span>' + (pideH ? 'Gira el celular a horizontal' : 'Pon el celular en vertical') + '</span><span style="font-weight:600;font-size:14px">Se habilita cuando el celular esté en la posición correcta</span></div>';
+    '<div class="rotar" id="rot"><svg viewBox="0 0 64 64" aria-hidden="true"><rect x="20" y="6" width="24" height="44" rx="4" fill="none" stroke="#fff" stroke-width="3"/><circle cx="32" cy="43" r="2" fill="#fff"/></svg><span>' + (pideH ? 'Gira el celular a horizontal' : 'Pon el celular en vertical') + '</span><span style="font-weight:600;font-size:14px">Se habilita cuando el celular esté en la posición correcta</span><button class="btn btn2" id="rotVolver" style="max-width:260px;background:transparent;color:#fff;border-color:#fff8">‹ Volver</button></div>';
   document.body.appendChild(div); document.body.style.overflow = 'hidden';
   const stage = div.querySelector('.stage'), gd = div.querySelector('#gd'), sh = div.querySelector('#sh'), man = div.querySelector('#man');
   let video = null, vivo = true, okDesde = 0, inicio = Date.now(), caja = null, ultimaDet = null, detOcup = false, rec = null, recBytes = 0, recIni = 0, chunks = [];
   const cerrar = () => { vivo = false; timers.forEach(clearTimeout); timers = []; if (rec && rec.state !== 'inactive') try { rec.stop(); } catch (e) {} if (stream) { stream.getTracks().forEach(tk => tk.stop()); stream = null; } div.remove(); document.body.style.overflow = ''; salirPantalla(); };
   div.querySelector('#cx').onclick = () => { cerrar(); render(); };
+  div.querySelector('#rotVolver').onclick = () => { cerrar(); render(); };
   try { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: modo === 'video' ? 1280 : 1920 }, height: { ideal: modo === 'video' ? 720 : 1080 } }, audio: false });
     video = document.createElement('video'); video.setAttribute('playsinline', ''); video.muted = true; video.srcObject = stream; stage.appendChild(video); await video.play().catch(() => {});
     if (!S.permCam) { S.permCam = true; evento('Permitió la cámara'); }
@@ -403,7 +404,7 @@ async function abrirCamara(id, modo, sinAyuda) {
     const bloqueo = pideH && !pantH && h; // el celular está horizontal pero la pantalla no giró
     const rot = div.querySelector('#rot'); rot.style.display = oriOk ? 'none' : 'flex';
     if (!oriOk) { const ios = /iPhone|iPad/.test(navigator.userAgent); rot.querySelector('span').textContent = bloqueo ? 'Tu pantalla no está girando' : (pideH ? 'Gira el celular a horizontal' : 'Pon el celular en vertical');
-      rot.querySelector('span:last-child').textContent = bloqueo ? (ios ? 'Desactiva el bloqueo de rotación: desliza desde la esquina superior derecha y toca el candado. Luego vuelve a girar el celular.' : 'Activa la rotación automática desde los ajustes rápidos y vuelve a girar el celular.') : 'Se habilita cuando el celular esté en la posición correcta'; }
+      rot.querySelectorAll('span')[1].textContent = bloqueo ? (ios ? 'Desactiva el bloqueo de rotación: desliza desde la esquina superior derecha y toca el candado. Luego vuelve a girar el celular.' : 'Activa la rotación automática desde los ajustes rápidos y vuelve a girar el celular.') : 'Se habilita cuando el celular esté en la posición correcta'; }
     est.orientacion = oriOk ? ['ok', pideH ? 'Horizontal' : 'Vertical'] : ['wa', bloqueo ? 'Desbloquea la rotación' : (pideH ? 'Gira a horizontal' : 'Gira a vertical')];
     const inc = orient.beta == null ? null : (pantH ? orient.beta : orient.gamma), nv = div.querySelector('#nv'); if (inc != null && nv) { nv.style.transform = 'translateX(' + Math.max(-18, Math.min(18, inc)) + 'px)'; nv.style.background = Math.abs(inc) < 8 ? '#3ddc97' : '#ffd166'; }
     if (r && caja && modo !== 'video') {
