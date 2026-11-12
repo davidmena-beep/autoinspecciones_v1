@@ -78,6 +78,8 @@ table.cal{width:100%;border-collapse:collapse;font-size:13px;margin:6px 0}table.
 </head>
 <body>
 <div id="app"></div>
+<script>window.CX_TOKEN = new URLSearchParams(location.search).get('t') || '';</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script>
 // =====================================================================
 // Réplica de demostración del portal de autoinspección de SIRIUS.
@@ -106,16 +108,16 @@ const CATALOGO_EXTRAS = ['Aros de aleación', 'Láminas de seguridad', 'Nebliner
 const EXTRAS_SOLICITUD = { sedan: ['Aros de aleación', 'Láminas de seguridad'], suv: ['Aros de aleación', 'Radio con pantalla'], camioneta: ['Barra antivuelco', 'Cubre balde', 'Estribos'], moto: [] };
 const ROTULO = { sedan: 'Sedán', suv: 'SUV o Jeep', camioneta: 'Camioneta', moto: 'Moto', cargadora: 'Cargadora', excavadora: 'Excavadora', montacargas: 'Montacargas', generico: 'Equipo genérico' };
 // Reglas de alerta (en SIRIUS: parametrizables en Formularios › Autoinspección › Controles)
-const REGLAS = { videoMinBytes: 1 * 1024 * 1024, vueltaMinGrados: 300, distanciaMaxM: 150, precisionMaxM: 100, minutosTotalMax: 30, minutosEntreFotosMax: 10, pantallaUmbral: 60, videoMaxBytes: 10 * 1024 * 1024, videoSeg: 45 };
+const REGLAS = { videoMinBytes: 1 * 1024 * 1024, vueltaMinGrados: 300, distanciaMaxM: 150, precisionMaxM: 100, minutosTotalMax: 30, minutosEntreFotosMax: 10, pantallaUmbral: 60, videoMaxBytes: 10 * 1024 * 1024, videoSeg: 60 };
 // =====================================================================
-const KEY = 'sirius-autoinspeccion-demo-v2';
+const KEY = window.CX_TOKEN ? 'sirius-auto-' + window.CX_TOKEN : 'sirius-autoinspeccion-demo-v2';
 const nuevo = (tipo) => ({ tipo: tipo || 'camioneta', apariencia: 'ads', paso: 'inicio', consent: { datos: false, wa: false, sms: false }, fotos: {}, video: null, extras: null, eventos: [], estado: 'Enlace enviado', rechazos: {}, declaracion: { nombre: '' }, enviado: null, inicioMs: null });
 let S = nuevo();
 try { const g = JSON.parse(localStorage.getItem(KEY) || 'null'); if (g) S = Object.assign(nuevo(), g); } catch (e) {}
 const guardar = () => { try { localStorage.setItem(KEY, JSON.stringify(Object.assign({}, S, { video: S.video ? Object.assign({}, S.video, { url: null }) : null }))); } catch (e) { try { const l = JSON.parse(JSON.stringify(S)); Object.values(l.fotos).forEach(f => f.src = f.mini || ''); l.video = null; localStorage.setItem(KEY, JSON.stringify(l)); } catch (e2) {} } };
 function evento(accion, detalle) { const d = new Date(), p = n => String(n).padStart(2, '0'); (S.eventos = S.eventos || []).push({ t: Date.now(), hora: p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds()), accion, detalle: detalle || '', gps: gpsAct && !gpsAct.error ? [+gpsAct.lat.toFixed(5), +gpsAct.lng.toFixed(5)] : null }); if (S.estado === 'Enlace enviado' && accion !== 'Abrió el enlace') S.estado = 'Autoinspección en curso'; guardar(); }
 const T = () => GEO[S.tipo], CASO = () => CASOS[S.tipo], AP = () => APARIENCIAS[S.apariencia];
-const DOCS = () => T().maq ? [['doc_matricula', 'Matrícula o constancia de trámite'], ['doc_licencia_f', 'Licencia del operador (frente)'], ['doc_licencia_p', 'Licencia del operador (reverso)'], ['doc_ficha', 'Ficha técnica']]
+let DOCS = () => T().maq ? [['doc_matricula', 'Matrícula o constancia de trámite'], ['doc_licencia_f', 'Licencia del operador (frente)'], ['doc_licencia_p', 'Licencia del operador (reverso)'], ['doc_ficha', 'Ficha técnica']]
   : [['doc_matricula_f', 'Matrícula (frente)'], ['doc_matricula_p', 'Matrícula (reverso)'], ['doc_licencia_f', 'Licencia (frente)'], ['doc_licencia_p', 'Licencia (reverso)']];
 // Pasos de la autoinspección (en SIRIUS: Formularios › pasos de foto, columna Autoinspección; el Administrador activa o crea otros).
 // Posición = fracción del ancho y alto del ícono superior (frente a la derecha, lado izquierdo arriba).
@@ -525,7 +527,7 @@ function revisar(id, foto, g, recorte, recorteBase) {
   div.querySelector('#rp').onclick = () => { div.remove(); abrirCamara(id); };
   div.querySelector('#us').onclick = async () => { const us = div.querySelector('#us'); us.disabled = true; us.textContent = 'Revisando la foto…';
     const v = await validarContenido(id, recorteBase || recorte || foto._canvas, recorte); foto.huella = v.huella; if (v.ocr) foto.ocr = v.ocr; if (v.conf) foto.confVehiculo = v.conf;
-    const aceptar = (forzada) => { if (forzada) foto.validacion = 'Rechazada por validación · usada por el cliente'; S.fotos[id] = foto; evento('Subió la foto', nombreDe(id) + ' · ' + foto.at.split(' · ')[1] + (foto.gps ? ' · ' + foto.gps.lat.toFixed(5) + ', ' + foto.gps.lng.toFixed(5) : ' · sin ubicación')); guardar(); renderMapa(); };
+    const aceptar = (forzada) => { if (forzada) foto.validacion = 'Rechazada por validación · usada por el cliente'; S.fotos[id] = foto; if (window.cxFoto) cxFoto(id, foto); evento('Subió la foto', nombreDe(id) + ' · ' + foto.at.split(' · ')[1] + (foto.gps ? ' · ' + foto.gps.lat.toFixed(5) + ', ' + foto.gps.lng.toFixed(5) : ' · sin ubicación')); guardar(); renderMapa(); };
     if (!v.ok) { div.remove(); return rechazo(id, v.motivo, (forz) => { if (!forz) foto.validacion = 'Lectura no lograda en el celular · la hace el motor de SIRIUS'; aceptar(forz); }, v.suave); }
     div.remove(); aceptar(false);
     // Placa: se lee de la franja inferior central del contorno en el frente y la posterior (en segundo plano)
@@ -542,7 +544,7 @@ function renderVideo() {
 function revisarVideo(blob, seg, vuelta) {
   if (blob.size < REGLAS.videoMinBytes) { evento('Video rechazado', 'pesa ' + (blob.size / 1048576).toFixed(1) + ' MB (mínimo 1 MB)'); render(); setTimeout(() => alert('El video es muy corto (' + (blob.size / 1048576).toFixed(1) + ' MB). Graba la vuelta completa alrededor del vehículo, sin cortar: mínimo 1 MB.'), 50); return; }
   if (blob.size > REGLAS.videoMaxBytes) { S.video = null; render(); setTimeout(() => alert('El video pesa ' + (blob.size / 1048576).toFixed(1) + ' MB. Graba uno más corto (máximo 10 MB).'), 50); return; }
-  evento('Subió el video', (seg ? seg + ' s · ' : '') + (blob.size / 1048576).toFixed(1) + ' MB' + (vuelta != null ? ' · vuelta de ' + vuelta + '°' : '')); S.video = { bytes: blob.size, seg, vuelta, t: Date.now(), url: URL.createObjectURL(blob), gps: gpsAct && !gpsAct.error ? { lat: gpsAct.lat, lng: gpsAct.lng } : null }; guardar(); ir('video');
+  evento('Subió el video', (seg ? seg + ' s · ' : '') + (blob.size / 1048576).toFixed(1) + ' MB' + (vuelta != null ? ' · vuelta de ' + vuelta + '°' : '')); S.video = { bytes: blob.size, seg, vuelta, t: Date.now(), url: URL.createObjectURL(blob), gps: gpsAct && !gpsAct.error ? { lat: gpsAct.lat, lng: gpsAct.lng } : null }; if (window.cxVideo) cxVideo(blob); guardar(); ir('video');
 }
 // ---------- Revisión general, envío y comprobante ----------
 function renderRevision() {
@@ -586,7 +588,142 @@ function vistaCalificador() {
   document.body.appendChild(div); div.querySelector('#cerrarCal').onclick = () => div.remove();
 }
 if (!(S.eventos || []).length) evento('Abrió el enlace', navigator.userAgent.indexOf('iPhone') >= 0 ? 'iPhone' : navigator.userAgent.indexOf('Android') >= 0 ? 'Android' : 'Navegador');
-render();
+if (!window.CX_TOKEN) render();
+</script>
+<script>
+// ===================================================================================================
+// SIRIUS · Conexión de la autoinspección con la base (P-6e · SQL 31 · DEC-205). Solo actúa con ?t=<token>.
+// La plantilla manda: los pasos salen de la columna Autoinspección de la plantilla vigente (orden, guía y mapa);
+// los documentos, del catálogo del cliente (requeridos + «Agregar otro documento»). Cada foto, documento y el video
+// se suben a la base al tomarlos; si no hay red quedan pendientes y se reintentan. Sin ?t= la app sigue como demostración.
+// ===================================================================================================
+(function () {
+  const TOK = window.CX_TOKEN; if (!TOK) return;
+  const CONEX = { url: 'https://qdciqoxselwmudlycprq.supabase.co', key: 'sb_publishable_pUrNhusonmxflSItZlU0fQ_ohRpCrYW' };
+  let SB = null, D = null; const PEND = {};   // PEND[idLocal] = Blob pendiente de subir
+  const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+  const pantalla = (titulo, texto) => { document.getElementById('app').innerHTML = '<main style="padding:32px 22px;font-family:Mulish,system-ui,sans-serif;max-width:520px;margin:0 auto"><h1 style="font-size:22px;color:#0B2E59">' + esc(titulo) + '</h1><p style="color:#4a5565;line-height:1.5">' + texto + '</p></main>'; };
+  const rpc = async (fn, args) => { const { data, error } = await SB.rpc(fn, args); if (error) throw error; return data; };
+  window.demo = () => '';   // sin opciones de demostración con un enlace real
+  // ---------- traducción de un paso de la plantilla a la forma de la app ----------
+  const VISTA = { 'frente': 'frente', 'frontal': 'frente', 'posterior': 'posterior', 'lateral izquierdo': 'lateral_izq', 'lateral_izq': 'lateral_izq', 'lateral derecho': 'lateral_der', 'lateral_der': 'lateral_der' };
+  function guiaDePaso(st) {
+    let g = st.guia && st.guia.tipo ? st.guia : null;
+    if (!g) { const t = String(st.guide || '').toLowerCase(), m = t.split('·').map((x) => x.trim());
+      if (m[0] === 'silueta') g = { tipo: 'silueta', vista: VISTA[m[1]] || 'frente' };
+      else g = { tipo: 'marco', marco: ['placa', 'franja', 'documento', 'tablero', 'circulo', 'círculo'].find((x) => m[0] === x) || 'libre' }; }
+    if (g.tipo === 'silueta') return { tipo: 'silueta', vista: VISTA[g.vista] || g.vista || 'frente' };
+    const mk = String(g.marco || 'libre').replace('círculo', 'circulo'); return { tipo: ['placa', 'franja', 'documento', 'tablero', 'circulo'].includes(mk) ? mk : 'libre' };
+  }
+  function aPaso(st, M) {
+    const g = guiaDePaso(st), f = ((st.feeds || st.feedsX || []).join(' ') + ' ' + (st.guide || '') + ' ' + st.id).toLowerCase();
+    const ocr = /placa/.test(f) && g.tipo !== 'silueta' || /exteriores_(frontal|posterior)/.test(st.id) ? 'placa' : /vin|chasis/.test(f) ? 'vin' : /km|kilometr/.test(f) ? 'km' : null;
+    const valida = g.tipo === 'silueta' ? (g.vista.indexOf('lateral') === 0 ? 'lateral' : g.vista) : ocr === 'vin' ? 'vin' : ocr === 'km' ? 'km' : null;
+    const q = M && M.pos && M.pos[st.id], vb = M && M.vb; const pos = q && vb ? [q[0] / vb[2], q[1] / vb[3]] : null;
+    return { id: st.id, nombre: st.name || st.id, pos, guia: g, ocr: ocr === 'placa' && !/frontal|posterior|placa/.test(st.id) ? null : ocr, valida,
+             grupo: pos ? (st.group || 'Exterior') : 'Interior', texto: st.ayuda || (Array.isArray(st.ex) ? st.ex[0] : '') || null, ayuda: ocr === 'vin' };
+  }
+  const esDoc = (st) => (st.group || '') === 'Documentos' || /^documentos_/.test(st.id);
+  // ---------- documentos: requeridos y «otros» elegidos por el cliente ----------
+  const idDoc = (paso, n) => 'doc_' + paso + (n > 1 ? '__' + n : '');
+  const pasoDeId = (id) => id.indexOf('doc_') === 0 ? id.slice(4).replace(/__\d+$/, '') : id;
+  function docsActuales() {
+    const L = []; (D.documentos || []).forEach((d) => {
+      const elegido = d.uso === 'requerido' || (S.cxOtros || {})[d.id];
+      if (!elegido) return;
+      if (d.captura === 'frenteReverso') (d.pasos || []).forEach((p, i) => L.push([idDoc(p, 1), d.nombre + (i ? ' (reverso)' : ' (frente)')]));
+      else { const n = Math.max(d.min || 1, (S.cxOtros || {})[d.id] || 1), p = (d.pasos || [])[0] || ('documentos_' + d.id);
+        for (let i = 1; i <= n; i++) L.push([idDoc(p, i), d.nombre + (n > 1 || d.max > 1 ? ' · foto ' + i : '')]); }
+    });
+    return L;
+  }
+  // ---------- subida de archivos ----------
+  async function subir(idLocal, blob, tipo, extra) {
+    PEND[idLocal] = { blob, tipo, extra }; S.cxPend = Object.assign(S.cxPend || {}, { [idLocal]: true }); guardar();
+    try {
+      const idc = (extra && extra.idc) || uid(), ext = tipo === 'video' ? (blob.type.indexOf('mp4') >= 0 ? 'mp4' : 'webm') : 'jpg';
+      const ruta = 'portal/' + TOK + '/auto-' + idc + '.' + ext;
+      const up = await SB.storage.from('evidencias').upload(ruta, blob, { contentType: blob.type || (tipo === 'video' ? 'video/webm' : 'image/jpeg'), upsert: false });
+      if (up.error && !/exists|Duplicate/i.test(up.error.message || '')) throw up.error;
+      const r = await rpc('auto_evidencia', { p_token: TOK, p_paso: tipo === 'video' ? 'video_360' : pasoDeId(idLocal), p_ruta: ruta, p_tipo: tipo,
+        p_validacion: (extra && extra.validacion) || 'ok', p_lecturas: (extra && extra.lecturas) || {}, p_lat: extra && extra.gps ? extra.gps.lat : null,
+        p_lng: extra && extra.gps ? extra.gps.lng : null, p_id_cliente: idc, p_meta: (extra && extra.meta) || {} });
+      if (r !== 'ok') throw new Error(r);
+      delete PEND[idLocal]; delete S.cxPend[idLocal]; S.cxSubido = Object.assign(S.cxSubido || {}, { [idLocal]: idc }); guardar(); return true;
+    } catch (e) { console.warn('[SIRIUS] pendiente de subir', idLocal, e); return false; }
+  }
+  window.cxFoto = async (id, foto) => { if (!foto || !foto.src) return; foto.idc = foto.idc || uid();
+    const blob = await (await fetch(foto.src)).blob();
+    subir(id, blob, id.indexOf('doc_') === 0 ? 'documento' : 'foto', { idc: foto.idc, validacion: foto.validacion || 'ok', lecturas: foto.ocr ? { lectura: foto.ocr } : {}, gps: foto.gps, meta: { at: foto.at, conf: foto.confVehiculo || null } }); };
+  window.cxVideo = (blob) => { const v = S.video || {}; subir('video_360', blob, 'video', { idc: uid(), gps: v.gps, meta: { seg: v.seg, vuelta: v.vuelta, bytes: v.bytes } }); };
+  async function reintentar() { for (const id of Object.keys(PEND)) await subir(id, PEND[id].blob, PEND[id].tipo, PEND[id].extra); }
+  addEventListener('online', reintentar);
+  const pendientes = () => Object.keys(S.cxPend || {});
+  // ---------- envío ----------
+  window.enviar = async function () {
+    const b = $('#env'), red = $('#red'), t0 = b ? b.textContent : '';
+    if (b) { b.disabled = true; b.textContent = 'Enviando…'; }
+    try {
+      await reintentar();
+      const sinBlob = pendientes().filter((id) => !PEND[id]);
+      if (sinBlob.length) throw new Error('Hay ' + sinBlob.length + ' foto(s) que no alcanzaron a subirse antes de cerrar la app. Vuelve a tomarlas: ' + sinBlob.map(nombreDe).join(', ') + '.');
+      if (pendientes().length) throw new Error('Faltan ' + pendientes().length + ' archivo(s) por subir. Revisa tu conexión e intenta de nuevo.');
+      const r = await rpc('auto_enviar', { p_token: TOK, p_respuestas: { extras: S.extras || [], tipo: S.tipo, otrosDocumentos: S.cxOtros || {} },
+        p_declaracion: Object.assign({}, S.declaracion, { consentimientos: S.consent || {} }), p_id_cliente: S.cxEnvio || (S.cxEnvio = uid()) });
+      if (!r || r.ok === false) throw new Error((r && r.mensaje) || 'No se pudo enviar.');
+      evento('Envió la inspección', S.declaracion.nombre); S.estado = 'Autoinspección enviada';
+      const d = new Date(), p = (n) => String(n).padStart(2, '0'); S.enviado = { fecha: p(d.getDate()) + '/' + p(d.getMonth() + 1) + '/' + d.getFullYear() + ' · ' + p(d.getHours()) + ':' + p(d.getMinutes()) };
+      guardar(); ir('enviado');
+    } catch (e) { if (b) { b.disabled = false; b.textContent = t0 || 'Enviar la inspección'; } if (red) red.textContent = e.message || String(e); else alert(e.message || e); }
+  };
+  // ---------- «Agregar otro documento» en el mapa ----------
+  const renderMapaBase = window.renderMapa;
+  window.renderMapa = function () {
+    renderMapaBase();
+    const otros = (D.documentos || []).filter((d) => d.uso === 'otro'); if (!otros.length) return;
+    const hs = [...document.querySelectorAll('#app h2')], h = hs.find((x) => /document/i.test(x.textContent)) || hs[hs.length - 1]; if (!h) return;
+    const caja = document.createElement('div'); caja.style.cssText = 'margin:10px 0 4px';
+    const elegidos = otros.filter((d) => (S.cxOtros || {})[d.id]);
+    caja.innerHTML = elegidos.filter((d) => d.captura !== 'frenteReverso').map((d) => { const n = S.cxOtros[d.id] || 1; return n < (d.max || 1) ? '<button class="btn btn2" style="min-height:40px;margin:4px 0" data-mas="' + d.id + '">+ Otra foto de ' + esc(d.nombre) + ' (' + n + ' de ' + d.max + ')</button>' : ''; }).join('') +
+      '<button class="btn btn2" style="min-height:44px;margin:6px 0;border-style:dashed" id="cxOtro">+ Agregar otro documento</button><div id="cxHoja"></div>';
+    let sig = h.nextElementSibling; while (sig && sig.tagName !== 'H2' && sig.nextElementSibling && sig.nextElementSibling.tagName !== 'H2') sig = sig.nextElementSibling;
+    (sig || h).insertAdjacentElement('afterend', caja);
+    caja.querySelectorAll('[data-mas]').forEach((x) => (x.onclick = () => { S.cxOtros[x.dataset.mas] = (S.cxOtros[x.dataset.mas] || 1) + 1; guardar(); window.renderMapa(); }));
+    caja.querySelector('#cxOtro').onclick = () => { const H = caja.querySelector('#cxHoja');
+      H.innerHTML = '<div class="card" style="margin-top:6px"><b>¿Qué documento quieres agregar?</b>' + otros.map((d) => '<button class="btn ' + ((S.cxOtros || {})[d.id] ? '' : 'btn2') + '" style="min-height:44px;margin:6px 0 0;text-align:left" data-doc="' + d.id + '">' + esc(d.nombre) + '<br><small style="font-weight:500">' + (d.captura === 'frenteReverso' ? 'Frente y reverso' : (d.max > 1 ? 'Hasta ' + d.max + ' fotos' : '1 foto')) + ((S.cxOtros || {})[d.id] ? ' · agregado' : '') + '</small></button>').join('') + '</div>';
+      H.querySelectorAll('[data-doc]').forEach((x) => (x.onclick = () => { S.cxOtros = S.cxOtros || {}; if (S.cxOtros[x.dataset.doc]) delete S.cxOtros[x.dataset.doc]; else S.cxOtros[x.dataset.doc] = 1; guardar(); window.renderMapa(); })); };
+  };
+  // ---------- arranque ----------
+  async function iniciar() {
+    pantalla('Cargando tu inspección…', 'Un momento, estamos preparando los pasos.');
+    try {
+      if (!window.supabase) throw new Error('No se pudo cargar la conexión. Revisa tu internet y vuelve a abrir el enlace.');
+      SB = window.supabase.createClient(CONEX.url, CONEX.key, { auth: { persistSession: false } });
+      D = await rpc('auto_obtener', { p_token: TOK });
+      if (!D || D.error) return pantalla('No pudimos abrir tu inspección', esc((D && D.error) || 'Enlace no válido.') + '<br><br>Pídele a tu asesor un enlace nuevo.');
+      if (D.ofrece === false) return pantalla('Esta inspección no está disponible', 'La autoinspección ya no aplica para tu caso. Tu asesor te contactará para coordinar otra modalidad.');
+      // caso y vehículo reales
+      const rd = (D.riesgo && D.riesgo.datos) || {}, car = ['sedan', 'suv', 'camioneta', 'moto'].includes(rd.carroceria) ? rd.carroceria : 'sedan';
+      ['sedan', 'suv', 'camioneta', 'moto'].forEach((t) => { CASOS[t] = { numero: String(D.caso.numero), contacto: (D.caso.contacto && D.caso.contacto.nombre) || D.caso.asegurado, asegurado: D.caso.asegurado,
+        desc: [rd.marca, rd.modelo, rd.anio].filter(Boolean).join(' ') || (D.riesgo.descripcion || ''), placa: rd.placa || '', vin: rd.vin || '' }; EXTRAS_SOLICITUD[t] = Array.isArray(rd.extras) ? rd.extras.slice() : []; });
+      if (!(S.eventos || []).some((e) => e.accion === 'Subió la foto') && S.paso === 'inicio') S.tipo = car;
+      // pasos de la plantilla (columna Autoinspección), en su orden
+      const pasos = (D.plantilla && D.plantilla.pasos) || [], M = D.plantilla && D.plantilla.mapa ? D.plantilla.mapa[S.tipo] || D.plantilla.mapa[car] : null;
+      const foto = pasos.filter((st) => !esDoc(st)).map((st) => aPaso(st, M));
+      if (foto.length) { PASOS_VEH.splice(0, PASOS_VEH.length, ...foto); PASOS_MOTO.splice(0, PASOS_MOTO.length, ...foto); }
+      DOCS = docsActuales;
+      REGLAS.videoSeg = 60; REGLAS.videoMaxBytes = 10 * 1024 * 1024;   // DEC-205: hasta 60 s
+      // lo que ya está en la base (otro celular o se borró el navegador): se marca como hecho
+      (D.subidas || []).forEach((x) => { if (x.tipo === 'video') { if (!S.video) S.video = { bytes: 0, subido: true, t: Date.now() }; return; }
+        const id = x.tipo === 'documento' ? Object.keys(S.fotos || {}).find((k) => pasoDeId(k) === x.paso) || idDoc(x.paso, 1) : x.paso;
+        if (!S.fotos[id]) S.fotos[id] = { src: '', mini: '', subida: true, at: 'en SIRIUS' }; });
+      if (D.enviado && !S.enviado) S.enviado = { fecha: 'ya enviada' };
+      guardar(); render(); if (D.enviado) ir('enviado');
+    } catch (e) { pantalla('No pudimos conectarnos', 'Revisa tu conexión a internet y vuelve a abrir el enlace.<br><small>' + esc(e.message || String(e)) + '</small>'); }
+  }
+  iniciar();
+})();
+
 </script>
 </body>
 </html>
