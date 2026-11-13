@@ -338,8 +338,8 @@ addEventListener('deviceorientation', e => { orient.beta = e.beta; orient.gamma 
 addEventListener('devicemotion', e => { const a = e.acceleration; if (a && a.x != null) orient.mov = Math.hypot(a.x, a.y, a.z); });
 function horizontalFisico() { if (orient.gamma != null && orient.beta != null) { const g = Math.abs(orient.gamma), b = Math.abs(orient.beta); if (g > 55 && b < 45) return true; if (b > 55 && g < 35) return false; } if (screen.orientation && screen.orientation.type) return screen.orientation.type.indexOf('landscape') === 0; return innerWidth > innerHeight; }
 async function pedirSensores() { try { if (window.DeviceOrientationEvent && DeviceOrientationEvent.requestPermission) await DeviceOrientationEvent.requestPermission(); if (window.DeviceMotionEvent && DeviceMotionEvent.requestPermission) await DeviceMotionEvent.requestPermission(); } catch (e) {} }
-function pantallaCompleta(h) { if (!h || !document.documentElement.requestFullscreen) return; document.documentElement.requestFullscreen({ navigationUI: 'hide' }).then(() => screen.orientation && screen.orientation.lock ? screen.orientation.lock('landscape') : null).catch(() => {}); }
-function salirPantalla() { try { if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock(); if (document.fullscreenElement) document.exitFullscreen(); } catch (e) {} }
+function pantallaCompleta(h) { if (!h || !document.documentElement.requestFullscreen) return; if (document.fullscreenElement) { try { if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(() => {}); } catch (e) {} return; } document.documentElement.requestFullscreen({ navigationUI: 'hide' }).then(() => screen.orientation && screen.orientation.lock ? screen.orientation.lock('landscape') : null).catch(() => {}); }
+function salirPantalla(salir) { try { if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock(); if (salir && document.fullscreenElement) document.exitFullscreen(); } catch (e) {} }   // se mantiene en pantalla completa durante el recorrido: el aviso del navegador sale una sola vez
 // Indicio de foto tomada a una pantalla (heurística de la demostración; en SIRIUS lo hace el motor de extracción).
 function indicioPantalla(canvas) {
   const N = 256, c = document.createElement('canvas'); c.width = N; c.height = Math.round(N * canvas.height / canvas.width); const x = c.getContext('2d'); x.drawImage(canvas, 0, 0, c.width, c.height);
@@ -492,16 +492,16 @@ function huella(canvas) { const c = document.createElement('canvas'); c.width = 
 const distH = (a, b) => { let n = 0; for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) n++; return n; };
 async function validarContenido(id, canvas, recorte) {
   const p = pasoDe(id) || {}, nom = (p.nombre || 'lo que se pide').toLowerCase(), hf = huella(canvas);
-  for (const [k, f] of Object.entries(S.fotos)) if (k !== id && f && f.huella && distH(hf, f.huella) <= 4) return { ok: false, motivo: 'Esta foto es igual a la de «' + nombreDe(k) + '». Toma la que corresponde a ' + nom + '.', huella: hf };
+  for (const [k, f] of Object.entries(S.fotos)) if (k !== id && f && f.huella && distH(hf, f.huella) <= 4) return { ok: false, duro: true, motivo: 'Esta foto es igual a la de «' + nombreDe(k) + '». Toma la que corresponde a ' + nom + '.', huella: hf };
   if (p.valida && ['frente', 'posterior', 'lateral'].indexOf(p.valida) >= 0 && !T().maq) {
     if (detectorEstado !== 'listo') cargarDetector();
     if (detector) { const res = await detector.detect(canvas, 5, .3).catch(() => []); const moto = S.tipo === 'moto';
       const v = res.filter(o => (moto ? ['motorcycle'] : ['car', 'truck', 'bus']).indexOf(o.class) >= 0).sort((a, b) => b.bbox[2] * b.bbox[3] - a.bbox[2] * a.bbox[3])[0];
-      if (!v) return { ok: false, motivo: 'No reconocemos ' + (moto ? 'una moto' : 'un vehículo') + ' en la foto. Toma ' + nom + ' completo dentro del contorno.', huella: hf };
+      if (!v) return { ok: true, aviso: true, motivo: 'No reconocemos ' + (moto ? 'una moto' : 'un vehículo') + ' en la foto. Toma ' + nom + ' completo dentro del contorno.', huella: hf };
       const cob = v.bbox[2] / canvas.width, asp = v.bbox[2] / v.bbox[3];
-      if (cob < .35) return { ok: false, motivo: 'El vehículo se ve muy lejos. Acércate hasta llenar el contorno.', huella: hf };
-      if (p.valida === 'lateral' && asp < 1.45 && !moto) return { ok: false, motivo: 'Parece una foto de frente o de atrás. Para el lateral, ponte al costado del vehículo.', huella: hf };
-      if (p.valida !== 'lateral' && asp > 2.1 && !moto) return { ok: false, motivo: 'Parece una foto lateral. Para ' + nom + ', ponte ' + (p.valida === 'frente' ? 'delante' : 'detrás') + ' del vehículo.', huella: hf };
+      if (cob < .35) return { ok: true, aviso: true, motivo: 'El vehículo se ve muy lejos. Acércate hasta llenar el contorno.', huella: hf };
+      if (p.valida === 'lateral' && asp < 1.45 && !moto) return { ok: true, aviso: true, motivo: 'Parece una foto de frente o de atrás. Para el lateral, ponte al costado del vehículo.', huella: hf };
+      if (p.valida !== 'lateral' && asp > 2.1 && !moto) return { ok: true, aviso: true, motivo: 'Parece una foto lateral. Para ' + nom + ', ponte ' + (p.valida === 'frente' ? 'delante' : 'detrás') + ' del vehículo.', huella: hf };
       return { ok: true, huella: hf, conf: Math.round(v.score * 100) }; }
   }
   // VIN y kilometraje: si no se lee, no se rechaza (el OCR del celular puede fallar con una foto buena): se avisa y el cliente decide.
@@ -526,8 +526,8 @@ function revisar(id, foto, g, recorte, recorteBase) {
   div.querySelector('#cg').onchange = e => div.querySelector('#gv').style.display = e.target.checked ? 'block' : 'none';
   div.querySelector('#rp').onclick = () => { div.remove(); abrirCamara(id); };
   div.querySelector('#us').onclick = async () => { const us = div.querySelector('#us'); us.disabled = true; us.textContent = 'Revisando la foto…';
-    const v = await validarContenido(id, recorteBase || recorte || foto._canvas, recorte); foto.huella = v.huella; if (v.ocr) foto.ocr = v.ocr; if (v.conf) foto.confVehiculo = v.conf;
-    const aceptar = (forzada) => { if (forzada) foto.validacion = 'Rechazada por validación · usada por el cliente'; S.fotos[id] = foto; if (window.cxFoto) cxFoto(id, foto); evento('Subió la foto', nombreDe(id) + ' · ' + foto.at.split(' · ')[1] + (foto.gps ? ' · ' + foto.gps.lat.toFixed(5) + ', ' + foto.gps.lng.toFixed(5) : ' · sin ubicación')); guardar(); renderMapa(); };
+    const v = await validarContenido(id, recorteBase || recorte || foto._canvas, recorte); foto.huella = v.huella; if (v.ocr) foto.ocr = v.ocr; if (v.conf) foto.confVehiculo = v.conf; window.__cxAviso = v.aviso ? v.motivo : null;
+    const aceptar = (forzada) => { if (forzada) foto.validacion = 'Rechazada por validación · usada por el cliente'; if (window.__cxAviso) { foto.validacion = 'Aviso: ' + window.__cxAviso; window.__cxAviso = null; } S.fotos[id] = foto; if (window.cxFoto) cxFoto(id, foto); evento('Subió la foto', nombreDe(id) + ' · ' + foto.at.split(' · ')[1] + (foto.gps ? ' · ' + foto.gps.lat.toFixed(5) + ', ' + foto.gps.lng.toFixed(5) : ' · sin ubicación')); guardar(); renderMapa(); };
     if (!v.ok) { div.remove(); return rechazo(id, v.motivo, (forz) => { if (!forz) foto.validacion = 'Lectura no lograda en el celular · la hace el motor de SIRIUS'; aceptar(forz); }, v.suave); }
     div.remove(); aceptar(false);
     // Placa: se lee de la franja inferior central del contorno en el frente y la posterior (en segundo plano)
@@ -671,7 +671,7 @@ if (!window.CX_TOKEN) render();
       const r = await rpc('auto_enviar', { p_token: TOK, p_respuestas: { extras: S.extras || [], tipo: S.tipo, otrosDocumentos: S.cxOtros || {} },
         p_declaracion: Object.assign({}, S.declaracion, { consentimientos: S.consent || {} }), p_id_cliente: S.cxEnvio || (S.cxEnvio = uid()) });
       if (!r || r.ok === false) throw new Error((r && r.mensaje) || 'No se pudo enviar.');
-      evento('Envió la inspección', S.declaracion.nombre); S.estado = 'Autoinspección enviada';
+      salirPantalla(true); evento('Envió la inspección', S.declaracion.nombre); S.estado = 'Autoinspección enviada';
       const d = new Date(), p = (n) => String(n).padStart(2, '0'); S.enviado = { fecha: p(d.getDate()) + '/' + p(d.getMonth() + 1) + '/' + d.getFullYear() + ' · ' + p(d.getHours()) + ':' + p(d.getMinutes()) };
       guardar(); ir('enviado');
     } catch (e) { if (b) { b.disabled = false; b.textContent = t0 || 'Enviar la inspección'; } if (red) red.textContent = e.message || String(e); else alert(e.message || e); }
