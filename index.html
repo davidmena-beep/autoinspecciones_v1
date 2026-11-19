@@ -639,7 +639,9 @@ if (!window.CX_TOKEN) render();
   }
   // ---------- subida de archivos ----------
   async function subir(idLocal, blob, tipo, extra) {
-    PEND[idLocal] = { blob, tipo, extra }; S.cxPend = Object.assign(S.cxPend || {}, { [idLocal]: true }); guardar();
+    const ref = MV.activo ? MV.cur : '', pk = (ref ? ref + '|' : '') + idLocal;   // 63: cada foto es de su vehículo
+    extra = Object.assign({}, extra || {}); if (ref) extra.meta = Object.assign({}, extra.meta || {}, { riesgo: ref });
+    PEND[pk] = { blob, tipo, extra, idLocal, ref }; S.cxPend = Object.assign(S.cxPend || {}, { [idLocal]: true }); guardar();
     try {
       const idc = (extra && extra.idc) || uid(), ext = tipo === 'video' ? (blob.type.indexOf('mp4') >= 0 ? 'mp4' : 'webm') : 'jpg';
       const ruta = 'portal/' + TOK + '/auto-' + idc + '.' + ext;
@@ -649,18 +651,19 @@ if (!window.CX_TOKEN) render();
         p_validacion: (extra && extra.validacion) || 'ok', p_lecturas: (extra && extra.lecturas) || {}, p_lat: extra && extra.gps ? extra.gps.lat : null,
         p_lng: extra && extra.gps ? extra.gps.lng : null, p_id_cliente: idc, p_meta: (extra && extra.meta) || {} });
       if (r !== 'ok') throw new Error(r);
-      delete PEND[idLocal]; delete S.cxPend[idLocal]; S.cxSubido = Object.assign(S.cxSubido || {}, { [idLocal]: idc }); guardar(); return true;
+      delete PEND[pk]; if (!ref || ref === MV.cur) { delete S.cxPend[idLocal]; S.cxSubido = Object.assign(S.cxSubido || {}, { [idLocal]: idc }); guardar(); } return true;
     } catch (e) { console.warn('[SIRIUS] pendiente de subir', idLocal, e); return false; }
   }
   window.cxFoto = async (id, foto) => { if (!foto || !foto.src) return; foto.idc = foto.idc || uid();
     const blob = await (await fetch(foto.src)).blob();
     subir(id, blob, id.indexOf('doc_') === 0 ? 'documento' : 'foto', { idc: foto.idc, validacion: foto.validacion || 'ok', lecturas: foto.ocr ? { lectura: foto.ocr } : {}, gps: foto.gps, meta: { at: foto.at, conf: foto.confVehiculo || null } }); };
   window.cxVideo = (blob) => { const v = S.video || {}; subir('video_360', blob, 'video', { idc: uid(), gps: v.gps, meta: { seg: v.seg, vuelta: v.vuelta, bytes: v.bytes } }); };
-  async function reintentar() { for (const id of Object.keys(PEND)) await subir(id, PEND[id].blob, PEND[id].tipo, PEND[id].extra); }
+  async function reintentar() { for (const k of Object.keys(PEND)) { const p = PEND[k]; if (p.ref && p.ref !== MV.cur) continue; await subir(p.idLocal || k, p.blob, p.tipo, p.extra); } }
   addEventListener('online', reintentar);
   const pendientes = () => Object.keys(S.cxPend || {});
   // ---------- envío ----------
   window.enviar = async function () {
+    if (MV.activo) return MV.enviar();   // 63: con varios vehículos, se envía el que se está inspeccionando
     const b = $('#env'), red = $('#red'), t0 = b ? b.textContent : '';
     if (b) { b.disabled = true; b.textContent = 'Enviando…'; }
     try {
@@ -693,6 +696,90 @@ if (!window.CX_TOKEN) render();
       H.innerHTML = '<div class="card" style="margin-top:6px"><b>¿Qué documento quieres agregar?</b>' + otros.map((d) => '<button class="btn ' + ((S.cxOtros || {})[d.id] ? '' : 'btn2') + '" style="min-height:44px;margin:6px 0 0;text-align:left" data-doc="' + d.id + '">' + esc(d.nombre) + '<br><small style="font-weight:500">' + (d.captura === 'frenteReverso' ? 'Frente y reverso' : (d.max > 1 ? 'Hasta ' + d.max + ' fotos' : '1 foto')) + ((S.cxOtros || {})[d.id] ? ' · agregado' : '') + '</small></button>').join('') + '</div>';
       H.querySelectorAll('[data-doc]').forEach((x) => (x.onclick = () => { S.cxOtros = S.cxOtros || {}; if (S.cxOtros[x.dataset.doc]) delete S.cxOtros[x.dataset.doc]; else S.cxOtros[x.dataset.doc] = 1; guardar(); window.renderMapa(); })); };
   };
+
+  // ---------- 63 · Varios vehículos (DEC-245 y DEC-246): «Tus vehículos», un recorrido y un envío por vehículo ----------
+  const MV = { activo: false, cur: '', lista: [] };
+  const KV = (ref) => KEY + ':' + ref, KCUR = KEY + ':cur';
+  const tipoDe = (vh) => { const d = vh.datos || {}, t = String(d.carroceria || d.tipo || d.tipoConfirmado || '').toLowerCase();
+    return /moto/.test(t) ? 'moto' : /suv/.test(t) ? 'suv' : /camioneta|pick/.test(t) ? 'camioneta' : 'sedan'; };
+  const descDe = (vh) => { const d = vh.datos || {}; return [d.marca, d.modelo, d.anio].filter(Boolean).join(' ') || vh.descripcion || ''; };
+  const placaDe = (vh) => (vh.datos || {}).placa || '';
+  const vehDe = (ref) => MV.lista.find((x) => x.ref === ref);
+  MV.guardarActual = () => { if (MV.cur) { try { localStorage.setItem(KV(MV.cur), JSON.stringify(Object.assign({}, S, { video: S.video ? Object.assign({}, S.video, { blob: undefined }) : null }))); } catch (e) {} } };
+  MV.cargar = (vh) => {   // deja S, el caso y los pasos con los datos de ese vehículo
+    let est = null; try { est = JSON.parse(localStorage.getItem(KV(vh.ref)) || 'null'); } catch (e) {}
+    const t = tipoDe(vh), d = vh.datos || {};
+    ['sedan', 'suv', 'camioneta', 'moto'].forEach((k) => { CASOS[k] = { numero: String(D.caso.numero), contacto: (D.caso.contacto && D.caso.contacto.nombre) || D.caso.asegurado, asegurado: D.caso.asegurado,
+      desc: descDe(vh), placa: placaDe(vh), vin: d.vin || '' }; EXTRAS_SOLICITUD[k] = Array.isArray(d.extras) ? d.extras.slice() : []; });
+    S = est && est.fotos ? est : nuevo(t); if (!est) { S.apariencia = 'ads'; } S.tipo = S.tipo || t; S.fotos = S.fotos || {};
+    (vh.subidas || []).forEach((x) => { if (x.tipo === 'video') { if (!S.video) S.video = { bytes: 0, subido: true, t: Date.now() }; return; }
+      const id = x.tipo === 'documento' ? Object.keys(S.fotos).find((k) => pasoDeId(k) === x.paso) || idDoc(x.paso, 1) : x.paso;
+      if (!S.fotos[id]) S.fotos[id] = { src: '', mini: '', subida: true, at: 'en SIRIUS' }; });
+    if (vh.estado === 'Enviado' && !S.enviado) S.enviado = { fecha: 'ya enviado' };
+  };
+  MV.abrir = (ref) => { const vh = vehDe(ref); if (!vh || vh.estado !== 'Pendiente') return; MV.guardarActual(); MV.cur = ref; try { localStorage.setItem(KCUR, ref); } catch (e) {}
+    MV.cargar(vh); guardar(); ir(S.paso && S.paso !== 'enviado' ? S.paso : 'inicio'); };
+  MV.volver = (msg) => { MV.guardarActual(); MV.cur = ''; try { localStorage.removeItem(KCUR); } catch (e) {} MV.lista_(msg); };
+  MV.progreso = (vh) => { let est = null; try { est = JSON.parse(localStorage.getItem(KV(vh.ref)) || 'null'); } catch (e) {} const n = est && est.fotos ? Object.keys(est.fotos).length : (vh.subidas || []).length; return n; };
+  MV.lista_ = (msg) => {
+    const pend = MV.lista.filter((x) => x.estado === 'Pendiente');
+    const chip = (vh) => vh.estado === 'Enviado' ? '<span style="background:#DCFAE6;color:#085D3A;border-radius:999px;padding:3px 10px;font-size:13px;font-weight:700">✓ Enviado</span>'
+      : vh.estado === 'No inspeccionado' ? '<span style="background:#F2F4F7;color:#344054;border-radius:999px;padding:3px 10px;font-size:13px;font-weight:700">No inspeccionado' + (vh.motivo ? ' · ' + esc(vh.motivo) : '') + '</span>'
+      : (MV.progreso(vh) ? '<span style="background:#FEF0C7;color:#93370D;border-radius:999px;padding:3px 10px;font-size:13px;font-weight:700">En progreso · ' + MV.progreso(vh) + ' fotos</span>' : '<span style="background:#E0F2FE;color:#0B4A6F;border-radius:999px;padding:3px 10px;font-size:13px;font-weight:700">Por inspeccionar</span>');
+    const tarjeta = (vh, i) => '<div class="card" style="margin:12px 0"><div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><div><b style="font-size:17px">' + esc(placaDe(vh) || 'Vehículo ' + (i + 1)) + '</b><br><span class="muted">' + esc(descDe(vh)) + ((vh.datos || {}).conductor ? ' · conductor: ' + esc(vh.datos.conductor) : '') + '</span></div>' + chip(vh) + '</div>'
+      + (vh.estado === 'Pendiente' ? '<button class="btn" style="margin-top:12px" data-abrir="' + esc(vh.ref) + '">' + (MV.progreso(vh) ? 'Continuar' : 'Inspeccionar este vehículo') + '</button><button class="btn btn3" style="margin-top:4px" data-nopuedo="' + esc(vh.ref) + '">No puedo hacerlo ahora</button>' : '') + '</div>';
+    const fin = !pend.length;
+    $('#app').innerHTML = shell((msg ? '<div class="notice" style="margin-bottom:10px">' + esc(msg) + '</div>' : '')
+      + '<h1>' + (fin ? 'Listo, gracias' : 'Tus vehículos') + '</h1><p>' + (fin ? 'Tu autoinspección quedó completa. Aseguradora del Sur ya recibió la información de cada vehículo.' : 'Tu solicitud tiene ' + MV.lista.length + ' vehículos. Inspecciona cada uno por separado: al terminar uno, se envía y puedes seguir con el siguiente.') + '</p>'
+      + MV.lista.map(tarjeta).join('') + '<div id="mvHoja"></div>');
+    { const m = document.querySelector('#app .meta span:last-child'), st = document.querySelector('#app .steps'); if (m) m.textContent = (MV.lista.length - pend.length) + ' de ' + MV.lista.length + ' vehículos listos'; if (st) st.style.display = 'none'; }   // el contador de la lista es de vehículos, no de pasos
+    document.querySelectorAll('[data-abrir]').forEach((b) => (b.onclick = () => MV.abrir(b.dataset.abrir)));
+    document.querySelectorAll('[data-nopuedo]').forEach((b) => (b.onclick = () => MV.noPuedo(b.dataset.nopuedo)));
+    window.scrollTo(0, 0);
+  };
+  MV.noPuedo = (ref) => { const vh = vehDe(ref), H = $('#mvHoja'); if (!vh || !H) return;
+    const M = ['No tengo el vehículo conmigo', 'El vehículo no es mío', 'Otro'];
+    H.innerHTML = '<div class="card" style="margin-top:8px"><b>¿Por qué no puedes inspeccionar ' + esc(placaDe(vh) || descDe(vh)) + ' ahora?</b>' + M.map((m) => '<label class="chk" style="margin-top:8px"><input type="radio" name="mvm" value="' + esc(m) + '"><span>' + esc(m) + '</span></label>').join('')
+      + '<textarea id="mvDet" rows="2" style="width:100%;margin-top:8px" placeholder="Detalle (obligatorio si eliges «Otro»)"></textarea><div id="mvErr" class="muted" style="color:#B42318"></div>'
+      + '<button class="btn" id="mvOk" style="margin-top:8px">Confirmar</button><button class="btn btn3" id="mvNo">Cancelar</button><p class="muted" style="font-size:13px">Tu asesor te contactará para coordinar ese vehículo de otra forma.</p></div>';
+    H.scrollIntoView({ behavior: 'smooth' });
+    $('#mvNo').onclick = () => (H.innerHTML = '');
+    $('#mvOk').onclick = async () => { const m = (document.querySelector('input[name=mvm]:checked') || {}).value, det = $('#mvDet').value.trim(), er = $('#mvErr');
+      if (!m) return (er.textContent = 'Elige un motivo.'); if (m === 'Otro' && det.length < 5) return (er.textContent = 'Con «Otro», escribe el detalle.');
+      $('#mvOk').disabled = true; er.textContent = 'Guardando…';
+      try { const r = await rpc('auto_vehiculo', { p_token: TOK, p_riesgo: ref, p_accion: 'noInspeccionado', p_datos: { motivo: m, detalle: det } });
+        if (!r || r.ok === false) throw new Error((r && r.mensaje) || 'No se pudo guardar.');
+        vh.estado = 'No inspeccionado'; vh.motivo = m; evento('No puede inspeccionar ' + (placaDe(vh) || ref), m);
+        MV.lista_(m === 'El vehículo no es mío' ? 'Gracias: avisamos a tu asesor para revisar los datos de tu solicitud.' : 'Listo: tu asesor coordinará ese vehículo contigo.');
+      } catch (e) { $('#mvOk').disabled = false; er.textContent = e.message || String(e); } };
+  };
+  MV.enviar = async () => {
+    const b = $('#env'), red = $('#red'), t0 = b ? b.textContent : ''; if (b) { b.disabled = true; b.textContent = 'Enviando…'; }
+    try {
+      await reintentar();
+      const sinBlob = pendientes().filter((id) => !PEND[MV.cur + '|' + id]);
+      if (sinBlob.length) throw new Error('Hay ' + sinBlob.length + ' foto(s) que no alcanzaron a subirse antes de cerrar la app. Vuelve a tomarlas: ' + sinBlob.map(nombreDe).join(', ') + '.');
+      if (pendientes().length) throw new Error('Faltan ' + pendientes().length + ' archivo(s) por subir. Revisa tu conexión e intenta de nuevo.');
+      const r = await rpc('auto_enviar_vehiculo', { p_token: TOK, p_riesgo: MV.cur, p_respuestas: { extras: S.extras || [], tipo: S.tipo, otrosDocumentos: S.cxOtros || {} },
+        p_declaracion: Object.assign({}, S.declaracion, { consentimientos: S.consent || {} }), p_id_cliente: S.cxEnvio || (S.cxEnvio = uid()) });
+      if (!r || r.ok === false) throw new Error((r && r.mensaje) || 'No se pudo enviar.');
+      salirPantalla(true); const vh = vehDe(MV.cur); if (vh) vh.estado = 'Enviado';
+      evento('Envió el vehículo', placaDe(vh || {}) || MV.cur); S.enviado = { fecha: 'enviado' }; guardar();
+      MV.volver((placaDe(vh || {}) || 'El vehículo') + ' enviado: su información ya llegó a Aseguradora del Sur.');
+    } catch (e) { if (b) { b.disabled = false; b.textContent = t0 || 'Enviar este vehículo'; } if (red) red.textContent = e.message || String(e); else alert(e.message || e); }
+  };
+  // Barra «← Tus vehículos» sobre cada pantalla del recorrido de un vehículo
+  const renderBase = window.render;
+  window.render = function () {
+    renderBase();
+    if (!MV.activo || !MV.cur) return;
+    const vh = vehDe(MV.cur), i = MV.lista.indexOf(vh), app = $('#app'); if (!app || !vh) return;
+    const bar = document.createElement('div');
+    bar.style.cssText = 'display:flex;align-items:center;gap:10px;justify-content:space-between;padding:10px 16px;background:#E6F7FD;border-bottom:1px solid #B9E6F7;font-size:14px';
+    bar.innerHTML = '<button style="border:0;background:transparent;color:#0B5CAD;font-weight:700;font-size:14px;cursor:pointer;padding:6px 0" id="mvVolver">← Tus vehículos</button><span><b>' + esc(placaDe(vh) || descDe(vh)) + '</b> · vehículo ' + (i + 1) + ' de ' + MV.lista.length + '</span>';
+    app.insertBefore(bar, app.firstChild); bar.querySelector('#mvVolver').onclick = () => MV.volver();
+    const env = $('#env'); if (env && /Enviar/.test(env.textContent)) env.textContent = 'Enviar este vehículo';
+  };
   // ---------- arranque ----------
   async function iniciar() {
     pantalla('Cargando tu inspección…', 'Un momento, estamos preparando los pasos.');
@@ -718,6 +805,12 @@ if (!window.CX_TOKEN) render();
         const id = x.tipo === 'documento' ? Object.keys(S.fotos || {}).find((k) => pasoDeId(k) === x.paso) || idDoc(x.paso, 1) : x.paso;
         if (!S.fotos[id]) S.fotos[id] = { src: '', mini: '', subida: true, at: 'en SIRIUS' }; });
       if (D.enviado && !S.enviado) S.enviado = { fecha: 'ya enviada' };
+      const VEH = Array.isArray(D.vehiculos) ? D.vehiculos : [];
+      if (VEH.length > 1) {   // 63: varios vehículos → «Tus vehículos», un recorrido y un envío por vehículo
+        MV.activo = true; MV.lista = VEH; let cur = ''; try { cur = localStorage.getItem(KCUR) || ''; } catch (e) {}
+        if (cur && vehDe(cur) && vehDe(cur).estado === 'Pendiente') { MV.cur = cur; MV.guardarActual(); }   // lo que quedó abierto en este celular
+        MV.cur = ''; return MV.lista_();
+      }
       guardar(); render(); if (D.enviado) ir('enviado');
     } catch (e) { pantalla('No pudimos conectarnos', 'Revisa tu conexión a internet y vuelve a abrir el enlace.<br><small>' + esc(e.message || String(e)) + '</small>'); }
   }
