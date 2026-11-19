@@ -729,7 +729,7 @@ if (!window.CX_TOKEN) render();
     const tarjeta = (vh, i) => '<div class="card" style="margin:12px 0"><div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><div><b style="font-size:17px">' + esc(placaDe(vh) || 'Vehículo ' + (i + 1)) + '</b><br><span class="muted">' + esc(descDe(vh)) + ((vh.datos || {}).conductor ? ' · conductor: ' + esc(vh.datos.conductor) : '') + '</span></div>' + chip(vh) + '</div>'
       + (vh.estado === 'Pendiente' ? '<button class="btn" style="margin-top:12px" data-abrir="' + esc(vh.ref) + '">' + (MV.progreso(vh) ? 'Continuar' : 'Inspeccionar este vehículo') + '</button><button class="btn btn3" style="margin-top:4px" data-nopuedo="' + esc(vh.ref) + '">No puedo hacerlo ahora</button>' : '') + '</div>';
     const fin = !pend.length;
-    $('#app').innerHTML = shell((msg ? '<div class="notice" style="margin-bottom:10px">' + esc(msg) + '</div>' : '')
+    $('#app').innerHTML = shell((msg ? '<div class="card" style="background:#DCFAE6;color:#085D3A;font-weight:700">' + esc(msg) + '</div>' : '')
       + '<h1>' + (fin ? 'Listo, gracias' : 'Tus vehículos') + '</h1><p>' + (fin ? 'Tu autoinspección quedó completa. Aseguradora del Sur ya recibió la información de cada vehículo.' : 'Tu solicitud tiene ' + MV.lista.length + ' vehículos. Inspecciona cada uno por separado: al terminar uno, se envía y puedes seguir con el siguiente.') + '</p>'
       + MV.lista.map(tarjeta).join('') + '<div id="mvHoja"></div>');
     { const m = document.querySelector('#app .meta span:last-child'), st = document.querySelector('#app .steps'); if (m) m.textContent = (MV.lista.length - pend.length) + ' de ' + MV.lista.length + ' vehículos listos'; if (st) st.style.display = 'none'; }   // el contador de la lista es de vehículos, no de pasos
@@ -739,9 +739,9 @@ if (!window.CX_TOKEN) render();
   };
   MV.noPuedo = (ref) => { const vh = vehDe(ref), H = $('#mvHoja'); if (!vh || !H) return;
     const M = ['No tengo el vehículo conmigo', 'El vehículo no es mío', 'Otro'];
-    H.innerHTML = '<div class="card" style="margin-top:8px"><b>¿Por qué no puedes inspeccionar ' + esc(placaDe(vh) || descDe(vh)) + ' ahora?</b>' + M.map((m) => '<label class="chk" style="margin-top:8px"><input type="radio" name="mvm" value="' + esc(m) + '"><span>' + esc(m) + '</span></label>').join('')
-      + '<textarea id="mvDet" rows="2" style="width:100%;margin-top:8px" placeholder="Detalle (obligatorio si eliges «Otro»)"></textarea><div id="mvErr" class="muted" style="color:#B42318"></div>'
-      + '<button class="btn" id="mvOk" style="margin-top:8px">Confirmar</button><button class="btn btn3" id="mvNo">Cancelar</button><p class="muted" style="font-size:13px">Tu asesor te contactará para coordinar ese vehículo de otra forma.</p></div>';
+    H.innerHTML = '<div class="card" style="margin-top:8px"><h2 style="margin-top:0">¿Por qué no puedes inspeccionar ' + esc(placaDe(vh) || descDe(vh)) + ' ahora?</h2>' + M.map((m) => '<label class="chk" style="margin-top:8px"><input type="radio" name="mvm" value="' + esc(m) + '"><span>' + esc(m) + '</span></label>').join('')
+      + '<textarea id="mvDet" rows="3" style="width:100%;margin-top:10px;font:400 16px Mulish,Arial;color:var(--ink);border:1.5px solid #9aa7b6;border-radius:12px;padding:10px 12px;background:#fff;resize:vertical" placeholder="Cuéntanos el motivo (obligatorio si eliges «Otro»)"></textarea><p id="mvErr" class="muted" style="color:#B42318;margin:6px 0 0"></p>'
+      + '<button class="btn" id="mvOk" style="margin-top:8px">Confirmar</button><button class="btn btn3" id="mvNo">Cancelar</button><p class="muted">Tu asesor te contactará para coordinar ese vehículo de otra forma.</p></div>';
     H.scrollIntoView({ behavior: 'smooth' });
     $('#mvNo').onclick = () => (H.innerHTML = '');
     $('#mvOk').onclick = async () => { const m = (document.querySelector('input[name=mvm]:checked') || {}).value, det = $('#mvDet').value.trim(), er = $('#mvErr');
