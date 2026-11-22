@@ -640,7 +640,8 @@ if (!window.CX_TOKEN) render();
   // ---------- subida de archivos ----------
   async function subir(idLocal, blob, tipo, extra) {
     const ref = MV.activo ? MV.cur : '', pk = (ref ? ref + '|' : '') + idLocal;   // 63: cada foto es de su vehículo
-    extra = Object.assign({}, extra || {}); if (ref) extra.meta = Object.assign({}, extra.meta || {}, { riesgo: ref });
+    extra = Object.assign({}, extra || {}); extra.meta = Object.assign({}, extra.meta || {}, ref ? { riesgo: ref } : {});
+    if (tipo !== 'video') { try { extra.meta.total = todos().length; } catch (e) { /* sin total: la base lo estima */ } }   // A · SQL 77: el total que ve el cliente («N de M fotos») para la carta de Coordinación
     PEND[pk] = { blob, tipo, extra, idLocal, ref }; S.cxPend = Object.assign(S.cxPend || {}, { [idLocal]: true }); guardar();
     try {
       const idc = (extra && extra.idc) || uid(), ext = tipo === 'video' ? (blob.type.indexOf('mp4') >= 0 ? 'mp4' : 'webm') : 'jpg';
