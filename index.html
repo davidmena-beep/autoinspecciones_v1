@@ -122,7 +122,22 @@ const KEY = window.CX_TOKEN ? 'sirius-auto-' + window.CX_TOKEN : 'sirius-autoins
 const nuevo = (tipo) => ({ tipo: tipo || 'camioneta', apariencia: 'ads', paso: 'inicio', consent: { datos: false, wa: false, sms: false }, fotos: {}, video: null, extras: null, eventos: [], estado: 'Enlace enviado', rechazos: {}, declaracion: { nombre: '' }, enviado: null, inicioMs: null });
 let S = nuevo();
 try { const g = JSON.parse(localStorage.getItem(KEY) || 'null'); if (g) S = Object.assign(nuevo(), g); } catch (e) {}
-const guardar = () => { try { localStorage.setItem(KEY, JSON.stringify(Object.assign({}, S, { video: S.video ? Object.assign({}, S.video, { url: null }) : null }))); } catch (e) { try { const l = JSON.parse(JSON.stringify(S)); Object.values(l.fotos).forEach(f => f.src = f.mini || ''); l.video = null; localStorage.setItem(KEY, JSON.stringify(l)); } catch (e2) {} } };
+// 24/11/2026 · C-1: en el almacenamiento del navegador se guarda cada foto como miniatura (la foto completa ya se subió a la base al tomarla;
+// si no alcanzó a subirse, la app ya pedía volver a tomarla). El almacenamiento es común a todas las apps del sitio (unos 5 MB): guardar las
+// fotos completas lo llenaba e impedía, por ejemplo, guardar la sesión de la app del inspector.
+const liviano = (o) => { const l = Object.assign({}, o, { video: o.video ? Object.assign({}, o.video, { url: null, blob: undefined }) : null }), f = {};
+  Object.keys(o.fotos || {}).forEach(id => { const x = o.fotos[id]; f[id] = x && x.mini && x.src && x.src !== x.mini ? Object.assign({}, x, { src: x.mini }) : x; }); l.fotos = f; return l; };
+// Libera espacio: los avances de otros enlaces se aligeran (fotos como miniatura) y los enviados o sin movimiento por más de 30 días se borran.
+// Los del enlace actual (y de sus vehículos) solo se aligeran. Devuelve los caracteres liberados.
+function aligerarAutoinspecciones() { let lib = 0; const ahora = Date.now(), MES = 30 * 864e5, claves = [];
+  try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.indexOf('sirius-auto') === 0) claves.push(k); } } catch (e) { return 0; }
+  claves.forEach(k => { const v = localStorage.getItem(k) || ''; let o = null; try { o = JSON.parse(v); } catch (e) { return; } if (!o || typeof o !== 'object' || !o.fotos) return;
+    const propio = k === KEY || k.indexOf(KEY + ':') === 0, ult = Math.max(o.inicioMs || 0, ...((o.eventos || []).map(e => e.t || 0)));
+    if (!propio && (o.enviado || (ult && ahora - ult > MES))) { localStorage.removeItem(k); lib += v.length; return; }
+    const t = JSON.stringify(liviano(o)); if (t.length < v.length) { try { localStorage.setItem(k, t); lib += v.length - t.length; } catch (e) {} } });
+  return lib; }
+try { aligerarAutoinspecciones(); } catch (e) {}
+const guardar = () => { const txt = () => JSON.stringify(liviano(S)); try { localStorage.setItem(KEY, txt()); } catch (e) { try { aligerarAutoinspecciones(); localStorage.setItem(KEY, txt()); } catch (e2) {} } };
 function evento(accion, detalle) { const d = new Date(), p = n => String(n).padStart(2, '0'); (S.eventos = S.eventos || []).push({ t: Date.now(), hora: p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds()), accion, detalle: detalle || '', gps: gpsAct && !gpsAct.error ? [+gpsAct.lat.toFixed(5), +gpsAct.lng.toFixed(5)] : null }); if (S.estado === 'Enlace enviado' && accion !== 'Abrió el enlace') S.estado = 'Autoinspección en curso'; guardar(); }
 const T = () => GEO[S.tipo], CASO = () => CASOS[S.tipo], AP = () => APARIENCIAS[S.apariencia];
 let DOCS = () => T().maq ? [['doc_matricula', 'Matrícula o constancia de trámite'], ['doc_licencia_f', 'Licencia del operador (frente)'], ['doc_licencia_p', 'Licencia del operador (reverso)'], ['doc_ficha', 'Ficha técnica']]
@@ -805,7 +820,7 @@ if (!window.CX_TOKEN) render();
   const descDe = (vh) => { const d = vh.datos || {}; return [d.marca, d.modelo, d.anio].filter(Boolean).join(' ') || vh.descripcion || ''; };
   const placaDe = (vh) => (vh.datos || {}).placa || '';
   const vehDe = (ref) => MV.lista.find((x) => x.ref === ref);
-  MV.guardarActual = () => { if (MV.cur) { try { localStorage.setItem(KV(MV.cur), JSON.stringify(Object.assign({}, S, { video: S.video ? Object.assign({}, S.video, { blob: undefined }) : null }))); } catch (e) {} } };
+  MV.guardarActual = () => { if (MV.cur) { try { localStorage.setItem(KV(MV.cur), JSON.stringify(liviano(S))); } catch (e) { try { aligerarAutoinspecciones(); localStorage.setItem(KV(MV.cur), JSON.stringify(liviano(S))); } catch (e2) {} } } };   // C-1: miniaturas
   MV.cargar = (vh) => {   // deja S, el caso y los pasos con los datos de ese vehículo
     let est = null; try { est = JSON.parse(localStorage.getItem(KV(vh.ref)) || 'null'); } catch (e) {}
     const t = tipoDe(vh), d = vh.datos || {};
