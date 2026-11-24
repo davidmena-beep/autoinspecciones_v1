@@ -345,8 +345,18 @@ addEventListener('deviceorientation', e => { orient.beta = e.beta; orient.gamma 
 addEventListener('devicemotion', e => { const a = e.acceleration; if (a && a.x != null) orient.mov = Math.hypot(a.x, a.y, a.z); });
 function horizontalFisico() { if (orient.gamma != null && orient.beta != null) { const g = Math.abs(orient.gamma), b = Math.abs(orient.beta); if (g > 55 && b < 45) return true; if (b > 55 && g < 35) return false; } if (screen.orientation && screen.orientation.type) return screen.orientation.type.indexOf('landscape') === 0; return innerWidth > innerHeight; }
 async function pedirSensores() { try { if (window.DeviceOrientationEvent && DeviceOrientationEvent.requestPermission) await DeviceOrientationEvent.requestPermission(); if (window.DeviceMotionEvent && DeviceMotionEvent.requestPermission) await DeviceMotionEvent.requestPermission(); } catch (e) {} }
+// 23/11/2026 · Android con la rotación automática apagada: el aviso animado se muestra mientras el celular está vertical; en cuanto los
+// sensores dicen que el cliente lo giró, se bloquea la pantalla en horizontal (así abre la cámara aunque la rotación esté apagada).
+// Si vuelve a vertical (más de 0,7 s), se suelta y reaparece el aviso. En iPhone no aplica: no hay pantalla completa ni bloqueo.
+let giroBloq = false, giroVertDesde = 0;
+function giroForzado(pideH, h, pantH) {
+  if (/iPhone|iPad|iPod/.test(navigator.userAgent) || !document.fullscreenElement || !(screen.orientation && screen.orientation.lock)) return;
+  if (pideH && h && !pantH && !giroBloq) { giroBloq = true; giroVertDesde = 0; screen.orientation.lock('landscape').catch(() => { giroBloq = false; }); return; }
+  if (giroBloq && pideH && !h) { if (!giroVertDesde) giroVertDesde = Date.now(); else if (Date.now() - giroVertDesde > 700) { giroBloq = false; giroVertDesde = 0; try { screen.orientation.unlock(); } catch (e) {} } return; }
+  giroVertDesde = 0;
+}
 function pantallaCompleta(h) { if (!h || !document.documentElement.requestFullscreen || document.fullscreenElement) return; document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(() => {}); }   // 23/11/2026: pantalla completa SIN bloquear la orientación: el cliente gira el celular con el aviso animado
-function salirPantalla(salir) { try { if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock(); if (salir && document.fullscreenElement) document.exitFullscreen(); } catch (e) {} }   // se mantiene en pantalla completa durante el recorrido: el aviso del navegador sale una sola vez
+function salirPantalla(salir) { giroBloq = false; giroVertDesde = 0; try { if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock(); if (salir && document.fullscreenElement) document.exitFullscreen(); } catch (e) {} }   // se mantiene en pantalla completa durante el recorrido: el aviso del navegador sale una sola vez
 // Indicio de foto tomada a una pantalla (heurística de la demostración; en SIRIUS lo hace el motor de extracción).
 function indicioPantalla(canvas) {
   const N = 256, c = document.createElement('canvas'); c.width = N; c.height = Math.round(N * canvas.height / canvas.width); const x = c.getContext('2d'); x.drawImage(canvas, 0, 0, c.width, c.height);
@@ -410,7 +420,8 @@ async function abrirCamara(id, modo, sinAyuda) {
   const est = {};
   function analizar() {
     if (!vivo) return; const r = visible(), W = innerWidth, H = innerHeight, h = horizontalFisico(), pantH = W > H, oriOk = pideH ? pantH : !pantH;
-    const bloqueo = pideH && !pantH && h; // el celular está horizontal pero la pantalla no giró
+    giroForzado(pideH, h, pantH); // 23/11/2026 · Android: si ya está horizontal y la pantalla no gira, se bloquea en horizontal
+    const bloqueo = pideH && !pantH && h && !giroBloq; // el celular está horizontal pero la pantalla no giró (y no se pudo bloquear)
     const rot = div.querySelector('#rot'); rot.style.display = oriOk ? 'none' : 'flex';
     if (!oriOk) { const ios = /iPhone|iPad/.test(navigator.userAgent); rot.querySelector('span').textContent = bloqueo ? 'Tu pantalla no está girando' : (pideH ? 'Gira el celular a horizontal' : 'Pon el celular en vertical');
       rot.querySelectorAll('span')[1].textContent = bloqueo ? (ios ? 'Desactiva el bloqueo de rotación: desliza desde la esquina superior derecha y toca el candado. Luego vuelve a girar el celular.' : 'Activa la rotación automática desde los ajustes rápidos y vuelve a girar el celular.') : 'Se habilita cuando el celular esté en la posición correcta'; }
