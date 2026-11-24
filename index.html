@@ -338,16 +338,26 @@ addEventListener('deviceorientation', e => { orient.beta = e.beta; orient.gamma 
 addEventListener('devicemotion', e => { const a = e.acceleration; if (a && a.x != null) orient.mov = Math.hypot(a.x, a.y, a.z); });
 function horizontalFisico() { if (orient.gamma != null && orient.beta != null) { const g = Math.abs(orient.gamma), b = Math.abs(orient.beta); if (g > 55 && b < 45) return true; if (b > 55 && g < 35) return false; } if (screen.orientation && screen.orientation.type) return screen.orientation.type.indexOf('landscape') === 0; return innerWidth > innerHeight; }
 async function pedirSensores() { try { if (window.DeviceOrientationEvent && DeviceOrientationEvent.requestPermission) await DeviceOrientationEvent.requestPermission(); if (window.DeviceMotionEvent && DeviceMotionEvent.requestPermission) await DeviceMotionEvent.requestPermission(); } catch (e) {} }
-// 24/11/2026 · Android: la pantalla completa ya no bloquea la orientación de entrada: con el celular vertical se ve el aviso animado de giro.
-// Cuando los sensores dicen que el cliente ya lo giró, se bloquea en horizontal (así funciona aunque la rotación automática esté apagada);
-// si vuelve a vertical (más de 0,7 s), se suelta y reaparece el aviso. En iPhone no aplica (no hay pantalla completa ni bloqueo).
-let giroBloq = false, giroVertDesde = 0, giroFallo = false;
-function giroForzado(pideH, h, pantH) {
-  if (/iPhone|iPad|iPod/.test(navigator.userAgent) || !document.fullscreenElement || !(screen.orientation && screen.orientation.lock)) return;
-  if (pideH && h && !pantH && !giroBloq && !giroFallo) { giroBloq = true; giroVertDesde = 0; screen.orientation.lock('landscape').catch(() => { giroBloq = false; giroFallo = true; }); return; }
-  if (giroBloq && pideH && !h) { if (!giroVertDesde) giroVertDesde = Date.now(); else if (Date.now() - giroVertDesde > 700) { giroBloq = false; giroVertDesde = 0; try { screen.orientation.unlock(); } catch (e) {} } return; }
-  giroVertDesde = 0;
+// 24/11/2026 · Android en pantalla completa: la app sigue al celular con los sensores en TODAS las pantallas (horizontal cuando está
+// horizontal, vertical cuando está vertical), como si la rotación automática estuviera encendida aunque esté apagada. Así, después de una
+// foto tomada en horizontal, la siguiente cámara abre directo; y con el celular vertical se ve el aviso animado de giro. Si un pedido de
+// giro no se cumple en 1,5 s, se repite. Si el teléfono rechaza el bloqueo, se deja de gestionar (vuelve el mensaje «Tu pantalla no está
+// girando»). En iPhone no aplica (no hay pantalla completa ni bloqueo).
+let giroBloq = false, giroPedido = null, giroPedidoEn = 0, giroFallo = false;
+function giroAndroid() { return !/iPhone|iPad|iPod/.test(navigator.userAgent) && !!document.fullscreenElement && !!(screen.orientation && screen.orientation.lock); }
+function giroFisico() { const g0 = orient.gamma, b0 = orient.beta; if (g0 == null || b0 == null) return null; const G = Math.abs(g0), B = Math.abs(b0);
+  if (G > 55 && B < 45) return 'landscape'; if (B > 55 && G < 35) return 'portrait'; return null; }
+function sincronizarGiro() {
+  if (!giroAndroid() || giroFallo) { giroBloq = false; return; }
+  const f = giroFisico(); if (!f) return;
+  const actual = (screen.orientation.type || '').indexOf('landscape') === 0 ? 'landscape' : 'portrait';
+  giroBloq = f === 'landscape';
+  if (giroPedido === f && (actual === f || Date.now() - giroPedidoEn < 1500)) return;   // ya pedido: cumplido o esperando
+  giroPedido = f; giroPedidoEn = Date.now();
+  screen.orientation.lock(f).catch(() => { giroFallo = true; giroBloq = false; giroPedido = null; });
 }
+setInterval(sincronizarGiro, 300);
+function giroForzado() { sincronizarGiro(); }
 // 24/11/2026 · Abrir la cámara: si falla por algo que no es el permiso (por ejemplo, la cámara anterior aún no se libera), se espera y se
 // reintenta; si vuelve a fallar, se pide sin exigir resolución. Solo después se pasa a la cámara del sistema.
 async function pedirCamara(c) {
@@ -358,7 +368,8 @@ async function pedirCamara(c) {
     catch (e2) { if (e2 && (e2.name === 'NotAllowedError' || e2.name === 'SecurityError')) throw e2; await new Promise(r => setTimeout(r, 400)); return await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false }); } }
 }
 function pantallaCompleta(h) { if (!h || !document.documentElement.requestFullscreen || document.fullscreenElement) return; document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(() => {}); }
-function salirPantalla(salir) { giroBloq = false; giroVertDesde = 0; giroFallo = false; try { if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock(); if (salir && document.fullscreenElement) document.exitFullscreen(); } catch (e) {} }   // se mantiene en pantalla completa durante el recorrido: el aviso del navegador sale una sola vez
+function salirPantalla(salir) { if (giroAndroid() && !salir) return;   // 24/11/2026 · Android en pantalla completa: la orientación la sigue sincronizarGiro
+  giroBloq = false; giroPedido = null; giroFallo = false; try { if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock(); if (salir && document.fullscreenElement) document.exitFullscreen(); } catch (e) {} }   // se mantiene en pantalla completa durante el recorrido: el aviso del navegador sale una sola vez
 // Indicio de foto tomada a una pantalla (heurística de la demostración; en SIRIUS lo hace el motor de extracción).
 function indicioPantalla(canvas) {
   const N = 256, c = document.createElement('canvas'); c.width = N; c.height = Math.round(N * canvas.height / canvas.width); const x = c.getContext('2d'); x.drawImage(canvas, 0, 0, c.width, c.height);
