@@ -351,15 +351,22 @@ async function pedirSensores() { try { if (window.DeviceOrientationEvent && Devi
 //   · Safari no reajusta el zoom ni el texto al girar (evita el «salto» al volver a vertical).
 // Nada de esto se ejecuta en Android.
 const ES_IPHONE = /iPhone|iPod/.test(navigator.userAgent);
-if (ES_IPHONE) {
+const ES_ANDROID_MOVIL = /Android/i.test(navigator.userAgent) && Math.min(screen.width, screen.height) < 700;
+if (ES_IPHONE) {   // iPhone: Safari no reajusta el zoom ni el texto al girar (evita el «salto» al volver a vertical)
   const vp = document.querySelector('meta[name="viewport"]'); if (vp && vp.content.indexOf('maximum-scale') < 0) vp.content = vp.content + ', maximum-scale=1';
   document.documentElement.style.webkitTextSizeAdjust = '100%';
+}
+if (ES_IPHONE || ES_ANDROID_MOVIL) {   // iPhone y Android: fuera de la cámara las pantallas son verticales; si se ven horizontales, se pide enderezar
+  let horDesde = 0;
   const pintarEnderezar = () => { const hor = innerWidth > innerHeight && !document.querySelector('.cam');
+    if (!hor) horDesde = 0; else if (!horDesde) horDesde = Date.now();
     let el = document.getElementById('enderezar');
     if (!el && document.body) { el = document.createElement('div'); el.id = 'enderezar'; el.setAttribute('role', 'alert');
       el.innerHTML = '<svg viewBox="0 0 64 64" aria-hidden="true"><rect x="20" y="6" width="24" height="44" rx="4" fill="none" stroke="#fff" stroke-width="3"/><circle cx="32" cy="43" r="2" fill="#fff"/></svg><span>Pon el celular en vertical</span><span style="font-weight:600;font-size:14px">Las fotos que lo piden se toman en horizontal; el resto, en vertical</span>';
+      if (ES_ANDROID_MOVIL) el.addEventListener('click', () => { if (!document.fullscreenElement && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen({ navigationUI: 'hide' }).then(() => sincronizarGiro()).catch(() => {}); });   // Android: tocar el aviso activa la pantalla completa y fija la vertical
       document.body.appendChild(el); }
-    document.documentElement.classList.toggle('ios-hor', hor); };
+    document.documentElement.classList.toggle('ios-hor', hor && Date.now() - horDesde > 400);
+    if (hor && Date.now() - horDesde <= 400) setTimeout(pintarEnderezar, 450); };
   addEventListener('resize', () => setTimeout(pintarEnderezar, 60)); addEventListener('orientationchange', () => setTimeout(pintarEnderezar, 250));
   const vigilar = () => { if (document.body) new MutationObserver(() => pintarEnderezar()).observe(document.body, { childList: true }); else setTimeout(vigilar, 50); }; vigilar();   // al abrir o cerrar la cámara, al instante
   if (document.readyState === 'loading') addEventListener('DOMContentLoaded', pintarEnderezar); else pintarEnderezar();
@@ -385,7 +392,7 @@ function sincronizarGiro() {
   const d = giroDeseado(), actual = (screen.orientation.type || '').indexOf('landscape') === 0 ? 'landscape' : 'portrait';
   if (giroPedido === d && (actual === d || Date.now() - giroPedidoEn < 1500)) return;   // ya pedido: cumplido o todavía esperando
   giroPedido = d; giroPedidoEn = Date.now();
-  screen.orientation.lock(d).catch(e => { if (e && (e.name === 'NotSupportedError' || e.name === 'SecurityError')) giroNoSoporta = true; });   // cancelado (AbortError): se ignora
+  screen.orientation.lock(d).catch(e => { if (e && e.name === 'NotSupportedError') giroNoSoporta = true; });   // cancelado (AbortError) o de seguridad (pantalla completa aún sin confirmar): se ignora y se vuelve a pedir
 }
 function giroEn(modo) { giroModo = modo; giroNoSoporta = false; sincronizarGiro(); }
 setInterval(sincronizarGiro, 300);
@@ -454,7 +461,7 @@ async function abrirCamara(id, modo, sinAyuda) {
   document.body.appendChild(div); document.body.style.overflow = 'hidden';
   const stage = div.querySelector('.stage'), gd = div.querySelector('#gd'), sh = div.querySelector('#sh'), man = div.querySelector('#man');
   if (g.tipo === 'documento') gd.classList.add('guiadoc');   // 24/11/2026 · documentos: afuera de la guía, oscuro (como en la app del inspector)
-  let video = null, vivo = true, okDesde = 0, inicio = Date.now(), caja = null, ultimaDet = null, detOcup = false, rec = null, recBytes = 0, recIni = 0, chunks = [], virt = 0;
+  let video = null, vivo = true, okDesde = 0, inicio = Date.now(), caja = null, ultimaDet = null, detOcup = false, rec = null, recBytes = 0, recIni = 0, chunks = [], virt = 0, bloqueoVisto = 0;
   const cerrar = () => { vivo = false; timers.forEach(clearTimeout); timers = []; if (rec && rec.state !== 'inactive') try { rec.stop(); } catch (e) {} if (stream) { stream.getTracks().forEach(tk => tk.stop()); stream = null; } div.remove(); document.body.style.overflow = ''; salirPantalla(); };
   div.querySelector('#cx').onclick = () => { cerrar(); render(); };
   div.querySelector('#rotVolver').onclick = () => { cerrar(); render(); };
@@ -484,10 +491,17 @@ async function abrirCamara(id, modo, sinAyuda) {
     giroForzado(pideH, h, pantH); // 24/11/2026 · Android: si ya está horizontal y la pantalla no gira, se bloquea en horizontal
     aplicarVirt(ES_IPHONE && modo !== 'video' && pideH && !pantH && h && orient.gamma != null ? ladoFisico() : 0);   // 24/11/2026 · iPhone con bloqueo: gira la capa
     const { W, H } = dimV(), oriOk = pideH ? (pantH || !!virt) : (!pantH && !((giroGestiona() || ES_IPHONE) && giroFisico() === 'landscape'));   // una foto vertical espera a que el celular esté vertical de verdad (Android e iPhone)
-    const bloqueo = pideH && !pantH && h && !giroGestiona() && !virt; // el celular está horizontal pero la pantalla no giró (y la app no puede girarla ni girar la capa: video en iPhone)
+    // 24/11/2026 · Solo iPhone/iPad: el celular está horizontal pero la pantalla no giró y la app no puede girar la capa (video de 360° con el
+    // bloqueo de rotación, o sin permiso de los sensores para las fotos). El aviso se mantiene 2,5 s para que no alterne. En Android no se usa.
+    const IOS_TODOS = /iPhone|iPad|iPod/.test(navigator.userAgent), bloqueo0 = IOS_TODOS && pideH && !pantH && h && !virt;
+    if (bloqueo0) bloqueoVisto = Date.now();
+    const bloqueo = IOS_TODOS && pideH && !pantH && !virt && (bloqueo0 || Date.now() - bloqueoVisto < 2500);
     const rot = div.querySelector('#rot'); rot.style.display = oriOk ? 'none' : 'flex';
-    if (!oriOk) { const ios = /iPhone|iPad/.test(navigator.userAgent); rot.querySelector('span').textContent = bloqueo ? 'Tu pantalla no está girando' : (pideH ? 'Gira el celular a horizontal' : 'Pon el celular en vertical');
-      rot.querySelectorAll('span')[1].textContent = bloqueo ? (ios ? 'Desactiva el bloqueo de rotación: desliza desde la esquina superior derecha y toca el candado. Luego vuelve a girar el celular.' : 'Activa la rotación automática desde los ajustes rápidos y vuelve a girar el celular.') : 'Se habilita cuando el celular esté en la posición correcta'; }
+    if (!oriOk) { const acc = modo === 'video' ? 'grabar el video' : 'tomar esta foto';
+      rot.querySelector('span').textContent = bloqueo ? 'Quita el bloqueo de giro de la pantalla' : (pideH ? 'Gira el celular a horizontal' : 'Pon el celular en vertical');
+      rot.querySelectorAll('span')[1].textContent = bloqueo ? 'Para ' + acc + ', la pantalla debe girar. Desliza hacia abajo desde la esquina superior derecha para abrir el Centro de control, toca el candado del bloqueo de rotación para dejarlo libre y vuelve a girar el celular.'
+        : (IOS_TODOS && pideH && modo === 'video') ? 'Si la pantalla no gira, quita el bloqueo de rotación en el Centro de control (esquina superior derecha, el candado).'
+        : 'Se habilita cuando el celular esté en la posición correcta'; }
     est.orientacion = oriOk ? ['ok', pideH ? 'Horizontal' : 'Vertical'] : ['wa', bloqueo ? 'Desbloquea la rotación' : (pideH ? 'Gira a horizontal' : 'Gira a vertical')];
     const inc = orient.beta == null ? null : ((pantH || virt) ? orient.beta : orient.gamma), nv = div.querySelector('#nv'); if (inc != null && nv) { nv.style.transform = 'translateX(' + Math.max(-18, Math.min(18, inc)) + 'px)'; nv.style.background = Math.abs(inc) < 8 ? '#3ddc97' : '#ffd166'; }
     if (r && caja && modo !== 'video') {
