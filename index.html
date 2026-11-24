@@ -14,7 +14,7 @@ html,body{margin:0;min-height:100%;background:#e9edf2;font:400 16px/1.5 "Mulish"
 #app{max-width:440px;min-height:100vh;margin:0 auto;background:#fff;display:flex;flex-direction:column;padding-bottom:env(safe-area-inset-bottom,0px);box-shadow:0 0 30px #0b2e5914}
 .hero{background:#fff;color:var(--ink);padding:calc(12px + env(safe-area-inset-top,0px)) 18px 14px;border-bottom:1px solid var(--line)}
 .hero .logo{display:flex;align-items:center;gap:10px;font-weight:900;letter-spacing:.2px;font-size:15px}
-.hero .logo img{height:34px;width:auto;display:block}.hero .logo .iso{width:28px;height:28px;border-radius:8px;background:#ffffff26;display:grid;place-items:center;font-size:15px}
+.hero .logo img{height:44px;width:auto;display:block}.hero .logo .iso{width:28px;height:28px;border-radius:8px;background:#ffffff26;display:grid;place-items:center;font-size:15px}
 .hero .meta{display:flex;justify-content:space-between;align-items:center;margin-top:10px;font-size:13px;color:var(--muted)}
 .steps{display:flex;gap:4px;margin-top:10px}.steps i{flex:1;height:5px;border-radius:3px;background:#e3e9f0}.steps i.on{background:var(--p)}
 main{flex:1;padding:20px 18px 28px}
@@ -49,7 +49,7 @@ table.cal{width:100%;border-collapse:collapse;font-size:13px;margin:6px 0}table.
 .cam{position:fixed;inset:0;z-index:20;background:#000;color:#fff;overflow:hidden}
 .cam .stage{position:absolute;inset:0}.cam video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .cam .sim{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 55%,#4b5868 0%,#2a333f 60%,#151b23 100%)}
-.cam .guide{position:absolute;pointer-events:none}.cam .guide svg{width:100%;height:100%;display:block;filter:drop-shadow(0 0 2px #000d)}
+.cam .guide{position:absolute;pointer-events:none}.cam .guide.guiadoc{box-shadow:0 0 0 200vmax rgba(0,0,0,.55);border-radius:10px}.cam .guide svg{width:100%;height:100%;display:block;filter:drop-shadow(0 0 2px #000d)}
 .cam .det{position:absolute;border:2px solid #ffd166;border-radius:8px;pointer-events:none;display:none}
 .cam .hdr{position:absolute;top:0;left:0;right:0;z-index:3;display:flex;align-items:center;gap:8px;padding:calc(10px + env(safe-area-inset-top,0px)) 12px 12px;background:linear-gradient(#000d,#0000)}
 .cam .hdr button{background:#000a;border:1px solid #fff4;color:#fff;font:800 14px Mulish,Arial;border-radius:12px;padding:9px 12px}.cam .hdr b{flex:1;text-align:center;font-size:14px}
@@ -338,8 +338,27 @@ addEventListener('deviceorientation', e => { orient.beta = e.beta; orient.gamma 
 addEventListener('devicemotion', e => { const a = e.acceleration; if (a && a.x != null) orient.mov = Math.hypot(a.x, a.y, a.z); });
 function horizontalFisico() { if (orient.gamma != null && orient.beta != null) { const g = Math.abs(orient.gamma), b = Math.abs(orient.beta); if (g > 55 && b < 45) return true; if (b > 55 && g < 35) return false; } if (screen.orientation && screen.orientation.type) return screen.orientation.type.indexOf('landscape') === 0; return innerWidth > innerHeight; }
 async function pedirSensores() { try { if (window.DeviceOrientationEvent && DeviceOrientationEvent.requestPermission) await DeviceOrientationEvent.requestPermission(); if (window.DeviceMotionEvent && DeviceMotionEvent.requestPermission) await DeviceMotionEvent.requestPermission(); } catch (e) {} }
-function pantallaCompleta(h) { if (!h || !document.documentElement.requestFullscreen) return; if (document.fullscreenElement) { try { if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(() => {}); } catch (e) {} return; } document.documentElement.requestFullscreen({ navigationUI: 'hide' }).then(() => screen.orientation && screen.orientation.lock ? screen.orientation.lock('landscape') : null).catch(() => {}); }
-function salirPantalla(salir) { try { if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock(); if (salir && document.fullscreenElement) document.exitFullscreen(); } catch (e) {} }   // se mantiene en pantalla completa durante el recorrido: el aviso del navegador sale una sola vez
+// 24/11/2026 · Android: la pantalla completa ya no bloquea la orientación de entrada: con el celular vertical se ve el aviso animado de giro.
+// Cuando los sensores dicen que el cliente ya lo giró, se bloquea en horizontal (así funciona aunque la rotación automática esté apagada);
+// si vuelve a vertical (más de 0,7 s), se suelta y reaparece el aviso. En iPhone no aplica (no hay pantalla completa ni bloqueo).
+let giroBloq = false, giroVertDesde = 0, giroFallo = false;
+function giroForzado(pideH, h, pantH) {
+  if (/iPhone|iPad|iPod/.test(navigator.userAgent) || !document.fullscreenElement || !(screen.orientation && screen.orientation.lock)) return;
+  if (pideH && h && !pantH && !giroBloq && !giroFallo) { giroBloq = true; giroVertDesde = 0; screen.orientation.lock('landscape').catch(() => { giroBloq = false; giroFallo = true; }); return; }
+  if (giroBloq && pideH && !h) { if (!giroVertDesde) giroVertDesde = Date.now(); else if (Date.now() - giroVertDesde > 700) { giroBloq = false; giroVertDesde = 0; try { screen.orientation.unlock(); } catch (e) {} } return; }
+  giroVertDesde = 0;
+}
+// 24/11/2026 · Abrir la cámara: si falla por algo que no es el permiso (por ejemplo, la cámara anterior aún no se libera), se espera y se
+// reintenta; si vuelve a fallar, se pide sin exigir resolución. Solo después se pasa a la cámara del sistema.
+async function pedirCamara(c) {
+  try { return await navigator.mediaDevices.getUserMedia(c); }
+  catch (e) { if (e && (e.name === 'NotAllowedError' || e.name === 'SecurityError')) throw e;
+    await new Promise(r => setTimeout(r, 700));
+    try { return await navigator.mediaDevices.getUserMedia(c); }
+    catch (e2) { if (e2 && (e2.name === 'NotAllowedError' || e2.name === 'SecurityError')) throw e2; await new Promise(r => setTimeout(r, 400)); return await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false }); } }
+}
+function pantallaCompleta(h) { if (!h || !document.documentElement.requestFullscreen || document.fullscreenElement) return; document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(() => {}); }
+function salirPantalla(salir) { giroBloq = false; giroVertDesde = 0; giroFallo = false; try { if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock(); if (salir && document.fullscreenElement) document.exitFullscreen(); } catch (e) {} }   // se mantiene en pantalla completa durante el recorrido: el aviso del navegador sale una sola vez
 // Indicio de foto tomada a una pantalla (heurística de la demostración; en SIRIUS lo hace el motor de extracción).
 function indicioPantalla(canvas) {
   const N = 256, c = document.createElement('canvas'); c.width = N; c.height = Math.round(N * canvas.height / canvas.width); const x = c.getContext('2d'); x.drawImage(canvas, 0, 0, c.width, c.height);
@@ -387,11 +406,12 @@ async function abrirCamara(id, modo, sinAyuda) {
     '<div class="rotar" id="rot"><svg viewBox="0 0 64 64" aria-hidden="true"><rect x="20" y="6" width="24" height="44" rx="4" fill="none" stroke="#fff" stroke-width="3"/><circle cx="32" cy="43" r="2" fill="#fff"/></svg><span>' + (pideH ? 'Gira el celular a horizontal' : 'Pon el celular en vertical') + '</span><span style="font-weight:600;font-size:14px">Se habilita cuando el celular esté en la posición correcta</span><button class="btn btn2" id="rotVolver" style="max-width:260px;background:transparent;color:#fff;border-color:#fff8">‹ Volver</button></div>';
   document.body.appendChild(div); document.body.style.overflow = 'hidden';
   const stage = div.querySelector('.stage'), gd = div.querySelector('#gd'), sh = div.querySelector('#sh'), man = div.querySelector('#man');
+  if (g.tipo === 'documento') gd.classList.add('guiadoc');   // 24/11/2026 · documentos: afuera de la guía, oscuro (como en la app del inspector)
   let video = null, vivo = true, okDesde = 0, inicio = Date.now(), caja = null, ultimaDet = null, detOcup = false, rec = null, recBytes = 0, recIni = 0, chunks = [];
   const cerrar = () => { vivo = false; timers.forEach(clearTimeout); timers = []; if (rec && rec.state !== 'inactive') try { rec.stop(); } catch (e) {} if (stream) { stream.getTracks().forEach(tk => tk.stop()); stream = null; } div.remove(); document.body.style.overflow = ''; salirPantalla(); };
   div.querySelector('#cx').onclick = () => { cerrar(); render(); };
   div.querySelector('#rotVolver').onclick = () => { cerrar(); render(); };
-  try { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: modo === 'video' ? 1280 : 1920 }, height: { ideal: modo === 'video' ? 720 : 1080 } }, audio: false });
+  try { stream = await pedirCamara({ video: { facingMode: { ideal: 'environment' }, width: { ideal: modo === 'video' ? 1280 : 1920 }, height: { ideal: modo === 'video' ? 720 : 1080 } }, audio: false });
     video = document.createElement('video'); video.setAttribute('playsinline', ''); video.muted = true; video.srcObject = stream; stage.appendChild(video); await video.play().catch(() => {});
     if (!S.permCam) { S.permCam = true; evento('Permitió la cámara'); }
   } catch (e) { evento('No permitió la cámara en vivo', e && e.name || ''); cerrar(); return camaraNativa(id, g, nombre, modo, e && e.name === 'NotAllowedError' ? 'No diste permiso para la cámara en vivo. Usaremos la cámara del celular.' : 'No pudimos abrir la cámara en vivo. Usaremos la cámara del celular.'); }
@@ -403,7 +423,8 @@ async function abrirCamara(id, modo, sinAyuda) {
   const est = {};
   function analizar() {
     if (!vivo) return; const r = visible(), W = innerWidth, H = innerHeight, h = horizontalFisico(), pantH = W > H, oriOk = pideH ? pantH : !pantH;
-    const bloqueo = pideH && !pantH && h; // el celular está horizontal pero la pantalla no giró
+    giroForzado(pideH, h, pantH); // 24/11/2026 · Android: si ya está horizontal y la pantalla no gira, se bloquea en horizontal
+    const bloqueo = pideH && !pantH && h && !giroBloq; // el celular está horizontal pero la pantalla no giró (y no se pudo bloquear)
     const rot = div.querySelector('#rot'); rot.style.display = oriOk ? 'none' : 'flex';
     if (!oriOk) { const ios = /iPhone|iPad/.test(navigator.userAgent); rot.querySelector('span').textContent = bloqueo ? 'Tu pantalla no está girando' : (pideH ? 'Gira el celular a horizontal' : 'Pon el celular en vertical');
       rot.querySelectorAll('span')[1].textContent = bloqueo ? (ios ? 'Desactiva el bloqueo de rotación: desliza desde la esquina superior derecha y toca el candado. Luego vuelve a girar el celular.' : 'Activa la rotación automática desde los ajustes rápidos y vuelve a girar el celular.') : 'Se habilita cuando el celular esté en la posición correcta'; }
@@ -447,7 +468,9 @@ async function abrirCamara(id, modo, sinAyuda) {
   function tomar(noVer) { const r = visible(); if (!r) return; const W = innerWidth, H = innerHeight, sc = Math.min(1, 1280 / r.sw), c = document.createElement('canvas'); c.width = Math.round(r.sw * sc); c.height = Math.round(r.sh * sc); c.getContext('2d').drawImage(video, r.sx, r.sy, r.sw, r.sh, 0, 0, c.width, c.height);
     let recorte = document.createElement('canvas'); const gx = caja.x / W * c.width, gy = caja.y / H * c.height, gw = caja.w / W * c.width, gh = caja.h / H * c.height; recorte.width = Math.round(gw); recorte.height = Math.round(gh); recorte.getContext('2d').drawImage(c, gx, gy, gw, gh, 0, 0, recorte.width, recorte.height);
     if (g.tipo === 'franja') { const r2 = document.createElement('canvas'), fx = recorte.width * .08, fy = recorte.height * .36; r2.width = Math.round(recorte.width * .84); r2.height = Math.round(recorte.height * .28); r2.getContext('2d').drawImage(recorte, fx, fy, r2.width, r2.height, 0, 0, r2.width, r2.height); recorte = r2; }
-    const foto = armarFoto(c, { guia: { x: caja.x / W, y: caja.y / H, w: caja.w / W, h: caja.h / H }, aspecto: W / H, validacion: noVer ? 'Encuadre no verificado' : 'Validada', horizontal: W > H });
+    const doc = g.tipo === 'documento';   // 24/11/2026 · documentos: la foto se recorta al documento
+    const foto = doc ? armarFoto(recorte, { guia: { x: 0, y: 0, w: 1, h: 1 }, aspecto: recorte.width / recorte.height, validacion: noVer ? 'Encuadre no verificado' : 'Validada', horizontal: recorte.width > recorte.height })
+      : armarFoto(c, { guia: { x: caja.x / W, y: caja.y / H, w: caja.w / W, h: caja.h / H }, aspecto: W / H, validacion: noVer ? 'Encuadre no verificado' : 'Validada', horizontal: W > H });
     cerrar(); revisar(id, foto, g, recorte, c); }
   sh.onclick = () => { if (modo !== 'video') return tomar(false); if (rec && rec.state === 'recording') return rec.stop(); grabar(); };
   man.onclick = () => tomar(true);
