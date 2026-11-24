@@ -4,6 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0B2E59">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Autoinspección">
+<link rel="apple-touch-icon" href="icono-180.png">
 <title>Autoinspección · Aseguradora del Sur</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Mulish:wght@400;600;700;800;900&display=swap" rel="stylesheet">
@@ -74,6 +80,14 @@ table.cal{width:100%;border-collapse:collapse;font-size:13px;margin:6px 0}table.
 }
 .rev{position:fixed;inset:0;z-index:30;background:#000;color:#fff;display:flex;flex-direction:column}
 .rev .bar{padding:14px 16px calc(16px + env(safe-area-inset-bottom,0px));background:#121820}.rev .meta{font-size:12px;color:#cfd8e2;margin:2px 0 8px}.rev .row{display:flex;gap:10px}.rev .row .btn{margin-top:6px}
+</style>
+<style>
+/* 23/11/2026 · Giro: fuera de la cámara la app siempre se presenta en vertical (iPhone no permite bloquear la orientación) */
+html.gv-l,html.gv-r{overflow:hidden;height:100%}
+html.gv-l body,html.gv-r body{position:fixed;top:0;left:0;margin:0;width:var(--gh,100vh);height:var(--gw,100vw);overflow:auto;-webkit-overflow-scrolling:touch;transform-origin:0 0}
+html.gv-l body{transform:translateY(var(--gh,100vh)) rotate(-90deg)}
+html.gv-r body{transform:translateX(var(--gw,100vw)) rotate(90deg)}
+html.gv-l #app,html.gv-r #app{min-height:100%}
 </style>
 </head>
 <body>
@@ -339,7 +353,7 @@ addEventListener('devicemotion', e => { const a = e.acceleration; if (a && a.x !
 function horizontalFisico() { if (orient.gamma != null && orient.beta != null) { const g = Math.abs(orient.gamma), b = Math.abs(orient.beta); if (g > 55 && b < 45) return true; if (b > 55 && g < 35) return false; } if (screen.orientation && screen.orientation.type) return screen.orientation.type.indexOf('landscape') === 0; return innerWidth > innerHeight; }
 async function pedirSensores() { try { if (window.DeviceOrientationEvent && DeviceOrientationEvent.requestPermission) await DeviceOrientationEvent.requestPermission(); if (window.DeviceMotionEvent && DeviceMotionEvent.requestPermission) await DeviceMotionEvent.requestPermission(); } catch (e) {} }
 function pantallaCompleta(h) { if (!h || !document.documentElement.requestFullscreen) return; if (document.fullscreenElement) { try { if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(() => {}); } catch (e) {} return; } document.documentElement.requestFullscreen({ navigationUI: 'hide' }).then(() => screen.orientation && screen.orientation.lock ? screen.orientation.lock('landscape') : null).catch(() => {}); }
-function salirPantalla(salir) { try { if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock(); if (salir && document.fullscreenElement) document.exitFullscreen(); } catch (e) {} }   // se mantiene en pantalla completa durante el recorrido: el aviso del navegador sale una sola vez
+function salirPantalla(salir) { try { if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock(); if (salir && document.fullscreenElement) document.exitFullscreen(); else if (document.fullscreenElement && screen.orientation && screen.orientation.lock) screen.orientation.lock('portrait').catch(() => {}); } catch (e) {} }   // 23/11/2026: fuera de la cámara, vertical   // se mantiene en pantalla completa durante el recorrido: el aviso del navegador sale una sola vez
 // Indicio de foto tomada a una pantalla (heurística de la demostración; en SIRIUS lo hace el motor de extracción).
 function indicioPantalla(canvas) {
   const N = 256, c = document.createElement('canvas'); c.width = N; c.height = Math.round(N * canvas.height / canvas.width); const x = c.getContext('2d'); x.drawImage(canvas, 0, 0, c.width, c.height);
@@ -385,10 +399,10 @@ async function abrirCamara(id, modo, sinAyuda) {
     (modo === 'video' ? '<div class="recinfo" id="ri" style="display:none"></div>' : '') +
     '<div class="tip" id="tip">' + esc(modo === 'video' ? 'Camina alrededor del vehículo a 2 pasos, con el celular horizontal.' : textoDe(g)) + '</div><div class="shot"><button class="manual" id="man">Tomar igual</button><button class="shutter" id="sh" aria-label="' + (modo === 'video' ? 'Grabar' : 'Tomar la foto') + '" disabled></button></div>' +
     '<div class="rotar" id="rot"><svg viewBox="0 0 64 64" aria-hidden="true"><rect x="20" y="6" width="24" height="44" rx="4" fill="none" stroke="#fff" stroke-width="3"/><circle cx="32" cy="43" r="2" fill="#fff"/></svg><span>' + (pideH ? 'Gira el celular a horizontal' : 'Pon el celular en vertical') + '</span><span style="font-weight:600;font-size:14px">Se habilita cuando el celular esté en la posición correcta</span><button class="btn btn2" id="rotVolver" style="max-width:260px;background:transparent;color:#fff;border-color:#fff8">‹ Volver</button></div>';
-  document.body.appendChild(div); document.body.style.overflow = 'hidden';
+  document.body.appendChild(div); document.body.style.overflow = 'hidden'; giroLista();
   const stage = div.querySelector('.stage'), gd = div.querySelector('#gd'), sh = div.querySelector('#sh'), man = div.querySelector('#man');
   let video = null, vivo = true, okDesde = 0, inicio = Date.now(), caja = null, ultimaDet = null, detOcup = false, rec = null, recBytes = 0, recIni = 0, chunks = [];
-  const cerrar = () => { vivo = false; timers.forEach(clearTimeout); timers = []; if (rec && rec.state !== 'inactive') try { rec.stop(); } catch (e) {} if (stream) { stream.getTracks().forEach(tk => tk.stop()); stream = null; } div.remove(); document.body.style.overflow = ''; salirPantalla(); };
+  const cerrar = () => { vivo = false; timers.forEach(clearTimeout); timers = []; if (rec && rec.state !== 'inactive') try { rec.stop(); } catch (e) {} if (stream) { stream.getTracks().forEach(tk => tk.stop()); stream = null; } div.remove(); document.body.style.overflow = ''; salirPantalla(); giroLista(); };
   div.querySelector('#cx').onclick = () => { cerrar(); render(); };
   div.querySelector('#rotVolver').onclick = () => { cerrar(); render(); };
   try { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: modo === 'video' ? 1280 : 1920 }, height: { ideal: modo === 'video' ? 720 : 1080 } }, audio: false });
@@ -475,9 +489,9 @@ function camaraNativa(id, g, nombre, modo, msg) {
   div.innerHTML = '<div class="sim"></div><div class="hdr"><button id="cx">‹ Volver</button><b>' + esc(nombre) + '</b><span style="width:66px"></span></div>' + (esVideo ? '' : '<div class="guide nat">' + svgGuia(g) + '</div>') +
     '<div class="tip nat">' + esc(esVideo ? 'Graba una vuelta completa alrededor del vehículo, sin cortar.' : textoDe(g)) + (g.orient === 'horizontal' ? '<br><span style="font-weight:600;font-size:13px">Con el celular horizontal</span>' : '') + '</div>' +
     '<div class="shot nat"><label class="btn">' + (esVideo ? 'Grabar con la cámara' : 'Abrir la cámara') + '<input id="inp" type="file" accept="' + (esVideo ? 'video/*' : 'image/*') + '" capture="environment" style="display:none"></label></div>';
-  document.body.appendChild(div); document.body.style.overflow = 'hidden';
+  document.body.appendChild(div); document.body.style.overflow = 'hidden'; giroLista();
   if (msg) aviso(div, msg); if (!window.isSecureContext) aviso(div, 'Para ver el contorno sobre la cámara en vivo, abre esta página desde una dirección https.');
-  const cerrar = () => { div.remove(); document.body.style.overflow = ''; salirPantalla(); };
+  const cerrar = () => { div.remove(); document.body.style.overflow = ''; salirPantalla(); giroLista(); };
   div.querySelector('#cx').onclick = () => { cerrar(); render(); };
   div.querySelector('#inp').onchange = (ev) => { const file = ev.target.files && ev.target.files[0]; if (!file) return;
     if (esVideo) { cerrar(); return revisarVideo(file, null); }
@@ -818,6 +832,37 @@ if (!window.CX_TOKEN) render();
     } catch (e) { pantalla('No pudimos conectarnos', 'Revisa tu conexión a internet y vuelve a abrir el enlace.<br><small>' + esc(e.message || String(e)) + '</small>'); }
   }
   iniciar();
+})();
+
+</script>
+<script>
+// 23/11/2026 · Giro y pantalla completa (observaciones en iPhone).
+// · Fuera de la cámara, la app siempre se presenta en vertical: si el celular queda horizontal, la pantalla se gira por CSS
+//   (iPhone no permite bloquear la orientación desde una página); en Android, con pantalla completa, además se bloquea de verdad.
+// · Android: la cámara entra en pantalla completa y se bloquea en horizontal (o vertical) según el paso.
+(function () {
+  var esIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  function movil() { return (window.matchMedia && matchMedia('(pointer: coarse)').matches) && Math.min(screen.width, screen.height) < 700; }
+  function angulo() { var a = (screen.orientation && screen.orientation.angle != null) ? screen.orientation.angle : (window.orientation || 0); return ((a % 360) + 360) % 360; }
+  function camaraAbierta() { try { if (typeof camAbierta !== 'undefined' && camAbierta) return true; } catch (e) {} return !!document.querySelector('.cam'); }
+  window.giroLista = function () {
+    var h = document.documentElement, hor = innerWidth > innerHeight;
+    h.style.setProperty('--gw', innerWidth + 'px'); h.style.setProperty('--gh', innerHeight + 'px');
+    h.classList.remove('gv-l', 'gv-r');
+    if (!movil() || camaraAbierta() || !hor) return;
+    h.classList.add(angulo() === 270 ? 'gv-r' : 'gv-l');
+  };
+  window.pcEntrar = function (horizontal) {
+    if (esIOS || !document.documentElement.requestFullscreen) return;
+    var bloquear = function () { try { if (screen.orientation && screen.orientation.lock) screen.orientation.lock(horizontal ? 'landscape' : 'portrait').catch(function () {}); } catch (e) {} };
+    if (document.fullscreenElement) return bloquear();
+    document.documentElement.requestFullscreen({ navigationUI: 'hide' }).then(bloquear).catch(function () {});
+  };
+  window.pcSalir = function () { try { if (document.fullscreenElement && screen.orientation && screen.orientation.lock) screen.orientation.lock('portrait').catch(function () {}); } catch (e) {} };
+  var luego = function (ms) { return function () { setTimeout(window.giroLista, ms); }; };
+  addEventListener('resize', luego(60)); addEventListener('orientationchange', luego(250));
+  if (screen.orientation && screen.orientation.addEventListener) screen.orientation.addEventListener('change', luego(120));
+  if (document.readyState === 'loading') addEventListener('DOMContentLoaded', window.giroLista); else window.giroLista();
 })();
 
 </script>
