@@ -54,7 +54,11 @@ label.chk{display:flex;gap:12px;align-items:flex-start;padding:13px 0;font-size:
 table.cal{width:100%;border-collapse:collapse;font-size:13px;margin:6px 0}table.cal td,table.cal th{padding:7px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}table.cal th{color:var(--muted);font-weight:700}
 /* Cámara */
 .cam{position:fixed;inset:0;z-index:20;background:#000;color:#fff;overflow:hidden}
-.cam .stage{position:absolute;inset:0}.cam .capa{position:absolute;left:0;top:0;width:100%;height:100%;transform-origin:0 0}.cam video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.cam .stage{position:absolute;inset:0}.cam .capa{position:absolute;left:0;top:0;width:100%;height:100%;transform-origin:0 0}
+/* 24/11/2026 · con la capa girada (bloqueo de rotación), la misma disposición que con la pantalla horizontal */
+.cam.virt .chips{left:12px;right:110px;bottom:10px;justify-content:flex-start}.cam.virt .tip{left:12px;transform:none;bottom:46px;max-width:calc(100% - 140px)}
+.cam.virt .shot{left:auto;right:18px;top:0;bottom:0;flex-direction:column}.cam.virt .nivel{right:100px}
+.cam.virt .guide.nat{left:4%;right:230px;top:14%;height:62%}.cam.virt .tip.nat{left:12px;right:230px;bottom:12px}.cam.virt .shot.nat{left:auto;width:210px;top:0;bottom:0;justify-content:center}.cam video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .cam .sim{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 55%,#4b5868 0%,#2a333f 60%,#151b23 100%)}
 .cam .guide{position:absolute;pointer-events:none}.cam .guide svg{width:100%;height:100%;display:block;filter:drop-shadow(0 0 2px #000d)}
 .cam .det{position:absolute;border:2px solid #ffd166;border-radius:8px;pointer-events:none;display:none}
@@ -355,6 +359,15 @@ function giroForzado(pideH, h, pantH) {
   if (giroBloq && pideH && !h) { if (!giroVertDesde) giroVertDesde = Date.now(); else if (Date.now() - giroVertDesde > 700) { giroBloq = false; giroVertDesde = 0; try { screen.orientation.unlock(); } catch (e) {} } return; }
   giroVertDesde = 0;
 }
+// 24/11/2026 · Abrir la cámara: si falla por algo que no es el permiso (por ejemplo, la cámara anterior aún no se libera), se espera y
+// se reintenta; si vuelve a fallar, se pide sin exigir resolución. Solo después se pasa a la cámara del sistema.
+async function pedirCamara(c) {
+  try { return await navigator.mediaDevices.getUserMedia(c); }
+  catch (e) { if (e && (e.name === 'NotAllowedError' || e.name === 'SecurityError')) throw e;
+    await new Promise(r => setTimeout(r, 700));
+    try { return await navigator.mediaDevices.getUserMedia(c); }
+    catch (e2) { if (e2 && (e2.name === 'NotAllowedError' || e2.name === 'SecurityError')) throw e2; await new Promise(r => setTimeout(r, 400)); return await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false }); } }
+}
 function pantallaCompleta(h) { if (!h || !document.documentElement.requestFullscreen || document.fullscreenElement) return; document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(() => {}); }   // 23/11/2026: pantalla completa SIN bloquear la orientación: el cliente gira el celular con el aviso animado
 function salirPantalla(salir) { giroBloq = false; giroVertDesde = 0; giroFallo = false; try { if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock(); if (salir && document.fullscreenElement) document.exitFullscreen(); } catch (e) {} }   // se mantiene en pantalla completa durante el recorrido: el aviso del navegador sale una sola vez
 // Indicio de foto tomada a una pantalla (heurística de la demostración; en SIRIUS lo hace el motor de extracción).
@@ -409,7 +422,7 @@ async function abrirCamara(id, modo, sinAyuda) {
   const cerrar = () => { vivo = false; timers.forEach(clearTimeout); timers = []; if (rec && rec.state !== 'inactive') try { rec.stop(); } catch (e) {} if (stream) { stream.getTracks().forEach(tk => tk.stop()); stream = null; } div.remove(); document.body.style.overflow = ''; salirPantalla(); };
   div.querySelector('#cx').onclick = () => { cerrar(); render(); };
   div.querySelector('#rotVolver').onclick = () => { cerrar(); render(); };
-  try { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: modo === 'video' ? 1280 : 1920 }, height: { ideal: modo === 'video' ? 720 : 1080 } }, audio: false });
+  try { stream = await pedirCamara({ video: { facingMode: { ideal: 'environment' }, width: { ideal: modo === 'video' ? 1280 : 1920 }, height: { ideal: modo === 'video' ? 720 : 1080 } }, audio: false });
     video = document.createElement('video'); video.setAttribute('playsinline', ''); video.muted = true; video.srcObject = stream; stage.appendChild(video); await video.play().catch(() => {});
     if (!S.permCam) { S.permCam = true; evento('Permitió la cámara'); }
   } catch (e) { evento('No permitió la cámara en vivo', e && e.name || ''); cerrar(); return camaraNativa(id, g, nombre, modo, e && e.name === 'NotAllowedError' ? 'No diste permiso para la cámara en vivo. Usaremos la cámara del celular.' : 'No pudimos abrir la cámara en vivo. Usaremos la cámara del celular.'); }
@@ -417,7 +430,7 @@ async function abrirCamara(id, modo, sinAyuda) {
   // 24/11/2026 · Celular horizontal con la pantalla sin girar (iPhone con bloqueo de rotación; Android sin pantalla completa): la capa gira
   // con los sensores y la imagen se endereza para el análisis y la foto (misma convención que la app del inspector).
   function dimV() { return virt ? { W: innerHeight, H: innerWidth } : { W: innerWidth, H: innerHeight }; }
-  function aplicarVirt(n) { if (n === virt) return; virt = n; const SW = innerWidth, SH = innerHeight;
+  function aplicarVirt(n) { if (n === virt) return; virt = n; div.classList.toggle('virt', !!virt); const SW = innerWidth, SH = innerHeight;
     if (!virt) Object.assign(capa.style, { width: '100%', height: '100%', transform: 'none' });
     else if (virt === 90) Object.assign(capa.style, { width: SH + 'px', height: SW + 'px', transform: 'translate(' + SW + 'px,0) rotate(90deg)' });
     else Object.assign(capa.style, { width: SH + 'px', height: SW + 'px', transform: 'translate(0,' + SH + 'px) rotate(-90deg)' });
