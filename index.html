@@ -356,6 +356,26 @@ const confundibles = (a, b) => a === b || CONFUSOS.some(g => g.indexOf(a) >= 0 &
 function comparar(leido, esperado) { if (!leido || !esperado) return null; const L = leido.replace(/[^A-Z0-9]/g, ''), E = esperado.replace(/[^A-Z0-9]/g, ''); if (L === E) return 'exacta'; if (L.length !== E.length) return 'no';
   let dif = 0, dud = 0; for (let i = 0; i < L.length; i++) if (L[i] !== E[i]) { if (confundibles(L[i], E[i])) dud++; else dif++; } return dif === 0 && dud <= 2 ? 'probable' : 'no'; }
 const ocr = (canvas, tipo) => conLimite(ocrInterno(canvas, tipo), tipo === 'placa' ? 25000 : 15000);
+// 25/11/2026 · LECTURA AMPLIADA. La lectura normal solo mira la franja de la guía (un 56 % del ancho y un 24 % del alto de la foto): si el número
+// queda apenas más ancho, más arriba o más abajo, el motor recibe el dato cortado o nada (por eso «no leía ni un texto simple»). La lectura
+// ampliada busca el dato en la zona central (rápida) o en la foto completa (al final), en modo de texto disperso, con dos preparaciones
+// (luminancia y canal más brillante) y dos polaridades, y se queda con el valor que más se repite.
+function prepAmp(src, ancho, modo, inv) { const k = ancho / src.width, o = document.createElement('canvas'); o.width = Math.round(src.width * k); o.height = Math.round(src.height * k);
+  const x = o.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(src, 0, 0, o.width, o.height); const d = x.getImageData(0, 0, o.width, o.height), a = d.data, Y = new Uint8ClampedArray(a.length / 4); let lo = 255, hi = 0;
+  for (let i = 0, q = 0; i < a.length; i += 4, q++) { const v = modo === 'max' ? Math.max(a[i], a[i + 1], a[i + 2]) : Math.round(.299 * a[i] + .587 * a[i + 1] + .114 * a[i + 2]); Y[q] = v; if (v < lo) lo = v; if (v > hi) hi = v; }
+  for (let i = 0, q = 0; i < a.length; i += 4, q++) { let v = (Y[q] - lo) * 255 / Math.max(1, hi - lo); if (inv) v = 255 - v; a[i] = a[i + 1] = a[i + 2] = v; } x.putImageData(d, 0, 0); return o; }
+function candidatosAmp(txt, tipo) { const t = String(txt || '').replace(/[^A-Z0-9\n ]/g, ' '); if (tipo === 'km') return t.match(/[0-9]{4,7}/g) || [];
+  const re = /[A-HJ-NPR-Z0-9]{17}/g; return (t.replace(/\s+/g, ' ').match(re) || []).concat(t.replace(/ /g, '').match(re) || []); }
+async function ocrAmpliado(canvas, tipo, rapida) { try { const lista = tipo === 'km' ? '0123456789' : 'ABCDEFGHJKLMNPRSTUVWXYZ0123456789', vistos = []; let de = 0, src = canvas;
+    if (rapida) { src = document.createElement('canvas'); src.width = Math.round(canvas.width * .92); src.height = Math.round(canvas.height * .62); src.getContext('2d').drawImage(canvas, canvas.width * .04, canvas.height * .19, src.width, src.height, 0, 0, src.width, src.height); }
+    const planes = rapida ? [['lum', false, 11], ['lum', true, 11]] : [['lum', false, 11], ['lum', true, 11], ['max', true, 11], ['lum', false, 6], ['max', false, 11], ['lum', true, 6]];
+    const mejor = () => { const g = {}; vistos.forEach(x => (g[x.v] = g[x.v] || []).push(x.c)); const o = Object.entries(g).sort((a, b) => b[1].length - a[1].length || b[0].length - a[0].length)[0]; return o ? { valor: o[0], votos: o[1].length, conf: Math.round(o[1].reduce((s2, c) => s2 + c, 0) / o[1].length) } : null; };
+    for (const [modo, inv, psm] of planes) { const r = await leer(prepAmp(src, rapida ? 1000 : 1400, modo, inv), psm, lista); de++; Array.from(new Set(candidatosAmp(r.txt, tipo))).forEach(v => vistos.push({ v, c: r.conf })); const m = mejor(); if (m && m.votos >= (rapida ? 1 : 3)) break; }
+    const m = mejor(); return m ? Object.assign(m, { de, metodo: rapida ? 'zona central' : 'foto completa' }) : { valor: null, conf: 0 };
+  } catch (e) { return { valor: null, conf: 0, error: 'OCR no disponible' }; } }
+// VIN, verificación rápida: la franja y, si no trae los 17 caracteres, una pasada por la zona central. Si aun así no está completo, se marca para la lectura de la foto completa al final.
+async function cadenaVin(recorte, canvas) { const r = await ocrInterno(recorte, 'vin'); if (r && r.valor && r.valor.length === 17) return r;
+  const r2 = canvas ? await ocrAmpliado(canvas, 'vin', true) : null; if (r2 && r2.valor) return r2; return Object.assign({}, r || { valor: null, conf: 0 }, { ampliar: true }); }
 // 24/11/2026 · DEC-285 · Las lecturas no se calculan frente al cliente (no se alarga el recorrido):
 //   · VIN: verificación RÁPIDA (3,5 s). Si no alcanza, el cliente continúa sin aviso y la lectura termina sola en segundo plano.
 //   · Kilometraje: no se lee al tomar la foto; se lee al final (pantalla de revisión o después de enviar).
@@ -368,17 +388,22 @@ function lectAplicar(id, n, r) { const q = LECT_PEND[id]; if (!q || q.n !== n) r
   if (q.ref !== lectRef()) { delete LECT_PEND[id]; return; }
   const f = S.fotos && S.fotos[id]; if (!f || String(f.huella) !== String(q.huella)) { q.listo = r; q.listoEn = q.listoEn || Date.now(); q.corriendo = true; return; }   // aún no aceptada
   delete LECT_PEND[id]; f.ocr = r; guardar(); if (window.cxLectura) window.cxLectura(id, f); }
-function lectRapida(id, recorte, tipo, ms, hf) { const n = ++lectSeq, completa = ocrInterno(recorte, tipo); LECT_PEND[id] = { n, ref: lectRef(), huella: hf, corriendo: true };
-  completa.then(r => lectAplicar(id, n, r)).catch(() => { if (LECT_PEND[id] && LECT_PEND[id].n === n) delete LECT_PEND[id]; });
+function lectRapida(id, recorte, tipo, ms, hf, canvas) { const n = ++lectSeq, completa = tipo === 'vin' ? cadenaVin(recorte, canvas) : ocrInterno(recorte, tipo); LECT_PEND[id] = { n, ref: lectRef(), huella: hf, corriendo: true };
+  completa.then(r => { lectAplicar(id, n, r); if (r && r.ampliar && canvas) lectDespues(id, null, tipo, hf, canvas); }).catch(() => { if (LECT_PEND[id] && LECT_PEND[id].n === n) delete LECT_PEND[id]; });
   return conLimite(completa, ms).then(r => { if (r && r.error !== 'tiempo' && LECT_PEND[id] && LECT_PEND[id].n === n) delete LECT_PEND[id]; return r; }); }
-function lectDespues(id, recorte, tipo, hf) { LECT_PEND[id] = { n: ++lectSeq, ref: lectRef(), huella: hf, recorte, tipo }; }
+function lectDespues(id, recorte, tipo, hf, canvas) { LECT_PEND[id] = { n: ++lectSeq, ref: lectRef(), huella: hf, recorte, canvas: canvas || null, tipo, despues: true }; }
 async function lectPendientes() { if (lectOcupado) return; lectOcupado = true; const t0 = Date.now();
-  try { for (const id of Object.keys(LECT_PEND)) { const q = LECT_PEND[id]; if (!q || q.corriendo || !q.recorte) continue; if (Date.now() - t0 > 45000) break;
-      q.corriendo = true; const r = await conLimite(ocrInterno(q.recorte, q.tipo), 15000).catch(() => null); q.recorte = null; lectAplicar(id, q.n, r || { error: 'tiempo' }); } }
+  try { for (const id of Object.keys(LECT_PEND)) { const q = LECT_PEND[id]; if (!q || q.corriendo || !q.despues) continue; if (Date.now() - t0 > 90000) break;
+      q.corriendo = true; q.despues = false;
+      let r = q.recorte ? await conLimite(ocrInterno(q.recorte, q.tipo), 15000).catch(() => null) : null;   // primero la franja
+      if ((!r || !r.valor || r.error === 'tiempo') && q.canvas) r = await conLimite(ocrAmpliado(q.canvas, q.tipo, false), 40000).catch(() => null);   // si no, la foto completa
+      q.recorte = null; q.canvas = null;
+      if (q.tipo === 'vin' && (!r || !r.valor)) { if (LECT_PEND[id] && LECT_PEND[id].n === q.n) delete LECT_PEND[id]; }   // no se pisa la lectura parcial con una vacía
+      else lectAplicar(id, q.n, r || { error: 'tiempo' }); } }
   finally { lectOcupado = false; } }
 setInterval(() => { try {
     Object.keys(LECT_PEND).forEach(id => { const q = LECT_PEND[id]; if (q && q.listo) { if (Date.now() - q.listoEn > 120000) delete LECT_PEND[id]; else lectAplicar(id, q.n, q.listo); } });   // lecturas que esperaban a que se acepte la foto
-    if ((S.paso === 'revision' || S.paso === 'enviado' || S.enviado) && Object.keys(LECT_PEND).some(k => LECT_PEND[k].recorte && !LECT_PEND[k].corriendo)) lectPendientes();
+    if ((S.paso === 'revision' || S.paso === 'enviado' || S.enviado) && Object.keys(LECT_PEND).some(k => LECT_PEND[k].despues && !LECT_PEND[k].corriendo)) lectPendientes();
   } catch (e) {} }, 2000);
 let orient = { beta: null, gamma: null, mov: 0 };
 addEventListener('deviceorientation', e => { orient.beta = e.beta; orient.gamma = e.gamma; const h = e.webkitCompassHeading != null ? e.webkitCompassHeading : (e.alpha != null ? 360 - e.alpha : null); if (h != null) { if (orient.rumbo != null && orient.vuelta != null) { let d = h - orient.rumbo; if (d > 180) d -= 360; if (d < -180) d += 360; orient.vuelta += d; } orient.rumbo = h; } });
@@ -641,9 +666,9 @@ async function validarContenido(id, canvas, recorte) {
       return { ok: true, huella: hf, conf: Math.round(v.score * 100) }; }
   }
   // VIN y kilometraje: si no se lee, no se rechaza (el OCR del celular puede fallar con una foto buena): se avisa y el cliente decide.
-  if (p.valida === 'vin' && recorte) { const r = await lectRapida(id, recorte, 'vin', 3500, hf); if (r && r.error === 'tiempo') return { ok: true, huella: hf };   /* no alcanzó: sigue sin aviso; la lectura termina en segundo plano */
+  if (p.valida === 'vin' && recorte) { const r = await lectRapida(id, recorte, 'vin', 3500, hf, canvas); if (r && r.error === 'tiempo') return { ok: true, huella: hf };   /* no alcanzó: sigue sin aviso; la lectura termina en segundo plano */
     if (!r.valor || r.valor.length < 11) return { ok: false, suave: true, motivo: 'No pudimos leer el número del VIN. Si en tu foto se ve claro y completo, continúa; si no, acércate y evita sombras o reflejos.', huella: hf, ocr: r }; return { ok: true, huella: hf, ocr: r }; }
-  if (p.valida === 'km' && recorte) { lectDespues(id, recorte, 'km', hf); return { ok: true, huella: hf }; }   /* DEC-285: el kilometraje se lee al final, no frente al cliente */
+  if (p.valida === 'km' && recorte) { lectDespues(id, recorte, 'km', hf, canvas); return { ok: true, huella: hf }; }   /* DEC-285: el kilometraje se lee al final, no frente al cliente */
   return { ok: true, huella: hf };
 }
 function rechazo(id, motivo, alUsar, suave) {
