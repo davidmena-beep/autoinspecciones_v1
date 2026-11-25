@@ -356,6 +356,30 @@ const confundibles = (a, b) => a === b || CONFUSOS.some(g => g.indexOf(a) >= 0 &
 function comparar(leido, esperado) { if (!leido || !esperado) return null; const L = leido.replace(/[^A-Z0-9]/g, ''), E = esperado.replace(/[^A-Z0-9]/g, ''); if (L === E) return 'exacta'; if (L.length !== E.length) return 'no';
   let dif = 0, dud = 0; for (let i = 0; i < L.length; i++) if (L[i] !== E[i]) { if (confundibles(L[i], E[i])) dud++; else dif++; } return dif === 0 && dud <= 2 ? 'probable' : 'no'; }
 const ocr = (canvas, tipo) => conLimite(ocrInterno(canvas, tipo), tipo === 'placa' ? 25000 : 15000);
+// 24/11/2026 · DEC-285 · Las lecturas no se calculan frente al cliente (no se alarga el recorrido):
+//   · VIN: verificación RÁPIDA (3,5 s). Si no alcanza, el cliente continúa sin aviso y la lectura termina sola en segundo plano.
+//   · Kilometraje: no se lee al tomar la foto; se lee al final (pantalla de revisión o después de enviar).
+// La lectura que llega después se agrega a la foto ya subida (base: auto_lectura). Si el cliente repite la foto o cambia de vehículo, se descarta.
+const LECT_PEND = {}; let lectSeq = 0, lectOcupado = false;
+const lectRef = () => (window.MV && window.MV.cur) || '';
+// La lectura solo se aplica a la foto exacta que la originó (misma huella). Si esa foto aún no fue aceptada («Usar esta foto»), espera; si nunca
+// se acepta o el cliente la repite, se descarta.
+function lectAplicar(id, n, r) { const q = LECT_PEND[id]; if (!q || q.n !== n) return; if (!r || r.error === 'tiempo') { delete LECT_PEND[id]; return; }
+  if (q.ref !== lectRef()) { delete LECT_PEND[id]; return; }
+  const f = S.fotos && S.fotos[id]; if (!f || String(f.huella) !== String(q.huella)) { q.listo = r; q.listoEn = q.listoEn || Date.now(); q.corriendo = true; return; }   // aún no aceptada
+  delete LECT_PEND[id]; f.ocr = r; guardar(); if (window.cxLectura) window.cxLectura(id, f); }
+function lectRapida(id, recorte, tipo, ms, hf) { const n = ++lectSeq, completa = ocrInterno(recorte, tipo); LECT_PEND[id] = { n, ref: lectRef(), huella: hf, corriendo: true };
+  completa.then(r => lectAplicar(id, n, r)).catch(() => { if (LECT_PEND[id] && LECT_PEND[id].n === n) delete LECT_PEND[id]; });
+  return conLimite(completa, ms).then(r => { if (r && r.error !== 'tiempo' && LECT_PEND[id] && LECT_PEND[id].n === n) delete LECT_PEND[id]; return r; }); }
+function lectDespues(id, recorte, tipo, hf) { LECT_PEND[id] = { n: ++lectSeq, ref: lectRef(), huella: hf, recorte, tipo }; }
+async function lectPendientes() { if (lectOcupado) return; lectOcupado = true; const t0 = Date.now();
+  try { for (const id of Object.keys(LECT_PEND)) { const q = LECT_PEND[id]; if (!q || q.corriendo || !q.recorte) continue; if (Date.now() - t0 > 45000) break;
+      q.corriendo = true; const r = await conLimite(ocrInterno(q.recorte, q.tipo), 15000).catch(() => null); q.recorte = null; lectAplicar(id, q.n, r || { error: 'tiempo' }); } }
+  finally { lectOcupado = false; } }
+setInterval(() => { try {
+    Object.keys(LECT_PEND).forEach(id => { const q = LECT_PEND[id]; if (q && q.listo) { if (Date.now() - q.listoEn > 120000) delete LECT_PEND[id]; else lectAplicar(id, q.n, q.listo); } });   // lecturas que esperaban a que se acepte la foto
+    if ((S.paso === 'revision' || S.paso === 'enviado' || S.enviado) && Object.keys(LECT_PEND).some(k => LECT_PEND[k].recorte && !LECT_PEND[k].corriendo)) lectPendientes();
+  } catch (e) {} }, 2000);
 let orient = { beta: null, gamma: null, mov: 0 };
 addEventListener('deviceorientation', e => { orient.beta = e.beta; orient.gamma = e.gamma; const h = e.webkitCompassHeading != null ? e.webkitCompassHeading : (e.alpha != null ? 360 - e.alpha : null); if (h != null) { if (orient.rumbo != null && orient.vuelta != null) { let d = h - orient.rumbo; if (d > 180) d -= 360; if (d < -180) d += 360; orient.vuelta += d; } orient.rumbo = h; } });
 addEventListener('devicemotion', e => { const a = e.acceleration; if (a && a.x != null) orient.mov = Math.hypot(a.x, a.y, a.z); });
@@ -442,7 +466,7 @@ function indicioPantalla(canvas) {
   return score;
 }
 // ---------- Ayuda: dónde encontrar el VIN o la serie ----------
-function ayudaVin(id, seguir) {
+function ayudaVin(id, seguir) { try { workerOcr().catch(() => {}); } catch (e) {}   // 24/11/2026: el motor de lectura se prepara mientras el cliente lee la ayuda
   const t0 = T(), maq = t0.maq, moto = S.tipo === 'moto', pick = S.tipo === 'camioneta', vb = t0.vb, d = t0.contorno.superior;
   // Ubicaciones del número grabado (no se aceptan stickers). Posición sobre la vista superior: frente a la derecha, lado del conductor arriba.
   const puntos = maq ? [[.45, .78, 'En el chasis, junto a la cabina: placa metálica del fabricante con la serie grabada'], [.5, .3, 'Dentro de la cabina, en el marco o bajo el asiento']]
@@ -617,8 +641,9 @@ async function validarContenido(id, canvas, recorte) {
       return { ok: true, huella: hf, conf: Math.round(v.score * 100) }; }
   }
   // VIN y kilometraje: si no se lee, no se rechaza (el OCR del celular puede fallar con una foto buena): se avisa y el cliente decide.
-  if (p.valida === 'vin' && recorte) { const r = await ocr(recorte, 'vin'); if (!r.valor || r.valor.length < 11) return { ok: false, suave: true, motivo: 'No pudimos leer el número del VIN. Si en tu foto se ve claro y completo, continúa; si no, acércate y evita sombras o reflejos.', huella: hf, ocr: r }; return { ok: true, huella: hf, ocr: r }; }
-  if (p.valida === 'km' && recorte) { const r = await ocr(recorte, 'km'); if (!r.valor) return { ok: false, suave: true, motivo: 'No pudimos leer el kilometraje. Si en tu foto se ve claro, continúa; si no, acércate al odómetro con el motor encendido.', huella: hf, ocr: r }; return { ok: true, huella: hf, ocr: r }; }
+  if (p.valida === 'vin' && recorte) { const r = await lectRapida(id, recorte, 'vin', 3500, hf); if (r && r.error === 'tiempo') return { ok: true, huella: hf };   /* no alcanzó: sigue sin aviso; la lectura termina en segundo plano */
+    if (!r.valor || r.valor.length < 11) return { ok: false, suave: true, motivo: 'No pudimos leer el número del VIN. Si en tu foto se ve claro y completo, continúa; si no, acércate y evita sombras o reflejos.', huella: hf, ocr: r }; return { ok: true, huella: hf, ocr: r }; }
+  if (p.valida === 'km' && recorte) { lectDespues(id, recorte, 'km', hf); return { ok: true, huella: hf }; }   /* DEC-285: el kilometraje se lee al final, no frente al cliente */
   return { ok: true, huella: hf };
 }
 function rechazo(id, motivo, alUsar, suave) {
@@ -772,6 +797,7 @@ if (!window.CX_TOKEN) render();
   window.cxFoto = async (id, foto) => { if (!foto || !foto.src) return; foto.idc = foto.idc || uid();
     const blob = await (await fetch(foto.src)).blob();
     subir(id, blob, id.indexOf('doc_') === 0 ? 'documento' : 'foto', { idc: foto.idc, validacion: foto.validacion || 'ok', lecturas: foto.ocr ? { lectura: foto.ocr } : {}, gps: foto.gps, meta: { at: foto.at, conf: foto.confVehiculo || null } }); };
+  window.cxLectura = (id, foto) => { if (!foto || !foto.idc || !foto.ocr) return; let k = 0; const ir = () => rpc('auto_lectura', { p_token: TOK, p_id_cliente: foto.idc, p_lecturas: { lectura: foto.ocr } }).then(r => { if (r === 'pendiente' && ++k < 6) setTimeout(ir, 5000); }).catch(() => { if (++k < 6) setTimeout(ir, 5000); }); ir(); };   // DEC-285
   window.cxVideo = (blob) => { const v = S.video || {}; subir('video_360', blob, 'video', { idc: uid(), gps: v.gps, meta: { seg: v.seg, vuelta: v.vuelta, bytes: v.bytes } }); };
   async function reintentar() { for (const k of Object.keys(PEND)) { const p = PEND[k]; if (p.ref && p.ref !== MV.cur) continue; await subir(p.idLocal || k, p.blob, p.tipo, p.extra); } }
   addEventListener('online', reintentar);
