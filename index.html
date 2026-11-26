@@ -608,11 +608,11 @@ async function abrirCamara(id, modo, sinAyuda) {
     const tp = div.querySelector('#tip'); tp.textContent = bloq.length ? est[bloq[0]][1] : 'Listo: toma la foto'; tp.style.background = bloq.length ? 'rgba(0,0,0,.42)' : 'rgba(31,122,92,.75)';
     man.style.display = (!sh.disabled || ahora - inicio < 12000 || (est.orientacion && est.orientacion[0] === 'wa')) ? 'none' : 'inline-block';
   }
-  function tomar(noVer) { const r = visible(); if (!r) return; const { W, H } = dimV(), lw = virt ? r.sh : r.sw, lh = virt ? r.sw : r.sh, sc = Math.min(1, 1280 / lw), c = document.createElement('canvas'); pintarV(c, Math.round(lw * sc), Math.round(lh * sc), r);
+  function tomar(noVer) { const r = visible(); if (!r) return; const { W, H } = dimV(), lw = virt ? r.sh : r.sw, lh = virt ? r.sw : r.sh, sc = Math.min(1, (g.tipo === 'documento' ? 1920 : 1280) / lw), c = document.createElement('canvas');   // 26/11/2026 · documentos a mayor resolución: la letra pequeña (reverso de la licencia) no se leía a 1280 pintarV(c, Math.round(lw * sc), Math.round(lh * sc), r);
     let recorte = document.createElement('canvas'); const gx = caja.x / W * c.width, gy = caja.y / H * c.height, gw = caja.w / W * c.width, gh = caja.h / H * c.height; recorte.width = Math.round(gw); recorte.height = Math.round(gh); recorte.getContext('2d').drawImage(c, gx, gy, gw, gh, 0, 0, recorte.width, recorte.height);
     if (g.tipo === 'franja') { const r2 = document.createElement('canvas'), fx = recorte.width * .08, fy = recorte.height * .36; r2.width = Math.round(recorte.width * .84); r2.height = Math.round(recorte.height * .28); r2.getContext('2d').drawImage(recorte, fx, fy, r2.width, r2.height, 0, 0, r2.width, r2.height); recorte = r2; }
     const doc = g.tipo === 'documento';   // 24/11/2026 · documentos: la foto se recorta al documento
-    const foto = doc ? armarFoto(recorte, { guia: { x: 0, y: 0, w: 1, h: 1 }, aspecto: recorte.width / recorte.height, validacion: noVer ? 'Encuadre no verificado' : 'Validada', horizontal: recorte.width > recorte.height })
+    const foto = doc ? armarFoto(recorte, { calidad: .85, guia: { x: 0, y: 0, w: 1, h: 1 }, aspecto: recorte.width / recorte.height, validacion: noVer ? 'Encuadre no verificado' : 'Validada', horizontal: recorte.width > recorte.height })
       : armarFoto(c, { guia: { x: caja.x / W, y: caja.y / H, w: caja.w / W, h: caja.h / H }, aspecto: W / H, validacion: noVer ? 'Encuadre no verificado' : 'Validada', horizontal: W > H });
     cerrar(); revisar(id, foto, g, recorte, c); }
   sh.onclick = () => { if (modo !== 'video') return tomar(false); if (rec && rec.state === 'recording') return rec.stop(); grabar(); };
@@ -631,7 +631,8 @@ function aviso(div, t) { const n = document.createElement('div'); n.className = 
 function armarFoto(canvas, extra) {
   const d = new Date(), p = n => String(n).padStart(2, '0'), mini = document.createElement('canvas'), ms = 200 / Math.max(canvas.width, canvas.height); mini.width = Math.round(canvas.width * ms); mini.height = Math.round(canvas.height * ms); mini.getContext('2d').drawImage(canvas, 0, 0, mini.width, mini.height);
   const gps = gpsAct && !gpsAct.error ? { lat: gpsAct.lat, lng: gpsAct.lng, prec: gpsAct.prec } : null;
-  return Object.assign({ src: canvas.toDataURL('image/jpeg', .72), mini: mini.toDataURL('image/jpeg', .6), t: Date.now(), at: p(d.getDate()) + '/' + p(d.getMonth() + 1) + '/' + d.getFullYear() + ' · ' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds()), gps,
+  const calidad = extra && extra.calidad ? extra.calidad : .72; if (extra && extra.calidad) { extra = Object.assign({}, extra); delete extra.calidad; }
+  return Object.assign({ src: canvas.toDataURL('image/jpeg', calidad), mini: mini.toDataURL('image/jpeg', .6), t: Date.now(), at: p(d.getDate()) + '/' + p(d.getMonth() + 1) + '/' + d.getFullYear() + ' · ' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds()), gps,
     disp: navigator.userAgent.indexOf('iPhone') >= 0 ? 'iPhone' : navigator.userAgent.indexOf('Android') >= 0 ? 'Android' : 'Navegador', pantalla: indicioPantalla(canvas) }, extra || {});
 }
 // ---------- Cámara del sistema (sin https) ----------
@@ -647,7 +648,8 @@ function camaraNativa(id, g, nombre, modo, msg) {
   div.querySelector('#cx').onclick = () => { cerrar(); render(); };
   div.querySelector('#inp').onchange = (ev) => { const file = ev.target.files && ev.target.files[0]; if (!file) return;
     if (esVideo) { cerrar(); return revisarVideo(file, null); }
-    const img = new Image(); img.onload = () => { const sc = Math.min(1, 1280 / Math.max(img.width, img.height)), c = document.createElement('canvas'); c.width = Math.round(img.width * sc); c.height = Math.round(img.height * sc); c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(img.src);
+    const esDoc = (() => { try { return g.tipo === 'documento'; } catch (e) { return false; } })();
+    const img = new Image(); img.onload = () => { const sc = Math.min(1, (esDoc ? 2000 : 1280) / Math.max(img.width, img.height)), c = document.createElement('canvas'); c.width = Math.round(img.width * sc); c.height = Math.round(img.height * sc); c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(img.src);
       const foto = armarFoto(c, { aspecto: c.width / c.height, horizontal: c.width > c.height, validacion: 'Cámara del sistema: encuadre no verificado' }); cerrar(); revisar(id, foto, g, c, c); }; img.src = URL.createObjectURL(file); };
 }
 // ---------- Validación del contenido de la foto ----------
