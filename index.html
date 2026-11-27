@@ -107,6 +107,10 @@ const CASOS = {
   suv: { numero: '20196', contacto: 'Ramiro', asegurado: 'Distribuidora Andina de Alimentos S.A.', desc: 'Toyota Corolla Cross 2022', placa: 'PBA4521', vin: '9BRBD48E2N2581047' },
   camioneta: { numero: '20186', contacto: 'Jorge Villacís', asegurado: 'Transportes del Litoral S.A.', desc: 'Chevrolet D-Max 2022', placa: 'GSC7810', vin: 'MPATFS86JNT004471' },
   moto: { numero: '20211', contacto: 'Andrés Cueva', asegurado: 'Andrés Cueva Ríos', desc: 'Honda XR190L 2024', placa: 'IA215B', vin: 'LALPCJF83R3104488' },
+  camion: { numero: '20230', contacto: 'Carlos Mena', asegurado: 'Transportes Andinos S.A.', desc: 'Hino 500 FC 2020', placa: 'PBC1234', vin: 'JHHUCL1H0LK001234' },
+  tractor: { numero: '20231', contacto: 'Rosa Quishpe', asegurado: 'Hacienda La Esperanza', desc: 'Tractor John Deere 6110J 2021', placa: null, vin: '1PY6110JLMM012345' },
+  retroexcavadora: { numero: '20232', contacto: 'Gabriela Andrade', asegurado: 'Constructora Amazonía Sacha S.A.', desc: 'Retroexcavadora Caterpillar 416F 2019', placa: null, vin: 'CAT0416FEJMF01234' },
+  bulldozer: { numero: '20233', contacto: 'Gabriela Andrade', asegurado: 'Constructora Amazonía Sacha S.A.', desc: 'Tractor oruga Caterpillar D6T 2018', placa: null, vin: 'CAT00D6TJGLN01234' },
   cargadora: { numero: '20204', contacto: 'Gabriela Andrade', asegurado: 'Constructora Amazonía Sacha S.A.', desc: 'Cargadora Caterpillar 966M XE 2017', placa: null, vin: 'CAT0966MXP7A04521' },
   excavadora: { numero: '20204', contacto: 'Gabriela Andrade', asegurado: 'Constructora Amazonía Sacha S.A.', desc: 'Excavadora Komatsu PC210LC-11 2021', placa: null, vin: 'KMTPC210C55101488' },
   montacargas: { numero: '20204', contacto: 'Gabriela Andrade', asegurado: 'Constructora Amazonía Sacha S.A.', desc: 'Montacargas Toyota 8FGU25 2019', placa: null, vin: '8FGU2561884XXXXXX' },
@@ -139,6 +143,28 @@ function aligerarAutoinspecciones() { let lib = 0; const ahora = Date.now(), MES
 try { aligerarAutoinspecciones(); } catch (e) {}
 const guardar = () => { const txt = () => JSON.stringify(liviano(S)); try { localStorage.setItem(KEY, txt()); } catch (e) { try { aligerarAutoinspecciones(); localStorage.setItem(KEY, txt()); } catch (e2) {} } };
 function evento(accion, detalle) { const d = new Date(), p = n => String(n).padStart(2, '0'); (S.eventos = S.eventos || []).push({ t: Date.now(), hora: p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds()), accion, detalle: detalle || '', gps: gpsAct && !gpsAct.error ? [+gpsAct.lat.toFixed(5), +gpsAct.lng.toFixed(5)] : null }); if (S.estado === 'Enlace enviado' && accion !== 'Abrió el enlace') S.estado = 'Autoinspección en curso'; guardar(); }
+// 27/11/2026 · V18 · tipos nuevos: camión (vehículo) y tractor, retroexcavadora y tractor oruga (maquinaria). Las guías de cámara usan el dibujo
+// genérico; la vista superior, su ilustración, con las mismas medidas que SIRIUS_SILUETAS (SQL 100).
+[['camion', 159, false], ['tractor', 169, true], ['retroexcavadora', 128, true], ['bulldozer', 190, true]].forEach(([k, alto, maq]) => { if (GEO[k]) return;
+  const g = JSON.parse(JSON.stringify(GEO.generico)); g.maq = maq; g.vb = [0, 0, 320, alto];
+  g.icono = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 ' + alto + '" role="img" aria-label="' + k + ' superior"><rect x="8" y="8" width="304" height="' + (alto - 16) + '" rx="14" fill="#1d2733" stroke="#ffffff" stroke-width="1.2"/></svg>';
+  GEO[k] = g; });
+// Regla única: de los datos de la solicitud (tipo confirmado, tipo de equipo, carrocería o clase) y del formulario, el tipo de la app.
+function tipoSilueta(d, plantilla) {
+  d = d || {}; const t = String(d.tipoConfirmado || d.tipoEquipo || d.carroceria || d.tipo || d.clase || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''), p = String(plantilla || '').toLowerCase();
+  if (/camioneta|pick ?up|cabina (simple|doble)/.test(t)) return 'camioneta';
+  if (/\bcamion\b|tracto ?camion|cabezal|volqueta|furgon|\bpesad/.test(t)) return 'camion';
+  if (/oruga|bulldozer|topadora/.test(t)) return 'bulldozer';
+  if (/retro/.test(t)) return 'retroexcavadora';
+  if (/excavadora/.test(t)) return 'excavadora';
+  if (/cargador/.test(t)) return 'cargadora';
+  if (/montacarga|elevador de carga/.test(t)) return 'montacargas';
+  if (/tractor/.test(t)) return 'tractor';
+  if (/moto/.test(t)) return 'moto';
+  if (/suv|jeep/.test(t)) return 'suv';
+  if (/sedan|hatch|coupe|automovil|\bauto\b/.test(t)) return 'sedan';
+  return /pesad/.test(p) ? 'camion' : /moto/.test(p) ? 'moto' : /equipo|maquinaria/.test(p) ? 'generico' : 'sedan';
+}
 const T = () => GEO[S.tipo], CASO = () => CASOS[S.tipo], AP = () => APARIENCIAS[S.apariencia];
 let DOCS = () => T().maq ? [['doc_matricula', 'Matrícula o constancia de trámite'], ['doc_licencia_f', 'Licencia del operador (frente)'], ['doc_licencia_p', 'Licencia del operador (reverso)'], ['doc_ficha', 'Ficha técnica']]
   : [['doc_matricula_f', 'Matrícula (frente)'], ['doc_matricula_p', 'Matrícula (reverso)'], ['doc_licencia_f', 'Licencia (frente)'], ['doc_licencia_p', 'Licencia (reverso)']];
@@ -189,8 +215,8 @@ const nombreDe = id => (pasoDe(id) || {}).nombre || (DOCS().find(d => d[0] === i
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const $ = s => document.querySelector(s);
 const FLUJO = ['inicio', 'consent', 'tipo', 'mapa', 'video', 'revision', 'declaracion', 'enviado'];
-const MAQ = ['cargadora', 'excavadora', 'montacargas', 'generico'], VEH = ['sedan', 'suv', 'camioneta', 'moto'];
-const ROTULO_LARGO = { sedan: 'Sedán o hatchback', suv: 'SUV o Jeep', camioneta: 'Camioneta', moto: 'Moto', cargadora: 'Cargadora o retroexcavadora', excavadora: 'Excavadora o tractor de oruga', montacargas: 'Montacargas', generico: 'Otro equipo (generador, compresor…)' };
+const MAQ = ['tractor', 'retroexcavadora', 'bulldozer', 'montacargas', 'cargadora', 'excavadora', 'generico'], VEH = ['sedan', 'suv', 'camioneta', 'moto', 'camion'];   // V18: camión y maquinaria nueva (DEC-299, DEC-301)
+const ROTULO_LARGO = { sedan: 'Sedán o hatchback', suv: 'SUV o Jeep', camioneta: 'Camioneta', moto: 'Moto', camion: 'Camión o pesado', tractor: 'Tractor', retroexcavadora: 'Retroexcavadora', bulldozer: 'Tractor oruga (bulldozer)', cargadora: 'Cargadora frontal', excavadora: 'Excavadora', montacargas: 'Montacargas', generico: 'Otro equipo (generador, compresor…)' };
 function aplicarApariencia() { const a = AP(); document.documentElement.style.setProperty('--p', a.primario); document.documentElement.style.setProperty('--pd', a.oscuro); document.querySelector('meta[name=theme-color]').content = a.oscuro; }
 function ir(p) { S.paso = p; guardar(); render(); window.scrollTo(0, 0); }
 function shell(cuerpo) {
@@ -201,7 +227,8 @@ function shell(cuerpo) {
 // 27/11/2026 · V17 · DEC-298 y DEC-299: vista superior con la ilustración oficial (SiriusBackoffice/recursos/siluetas), colocada sobre el contorno del
 // dibujo con la misma caja que SIRIUS_SILUETAS 1.7 (SQL 100): los puntos del mapa no se mueven. Sin ilustración o si no carga, el dibujo de siempre.
 const SIL_BASE = 'https://davidmena-beep.github.io/SiriusBackoffice/recursos/siluetas/';
-const SIL_IMG = { sedan: [15, 1, 290, 122], suv: [15, 1, 290, 122], camioneta: [14, 1, 312, 122], moto: [14, 16, 196, 92], montacargas: [30, 10, 280, 110] };
+const SIL_IMG = { sedan: [15, 1, 290, 122], suv: [15, 1, 290, 122], camioneta: [14, 1, 312, 122], moto: [14, 16, 196, 92], montacargas: [30, 10, 280, 110],
+  camion: [0, 0, 320, 159], tractor: [0, 0, 320, 169], retroexcavadora: [0, 0, 320, 128], bulldozer: [0, 0, 320, 190] };   // V18: tipos nuevos (ilustración en toda la vista)
 function silSvg(k, marcas, margen, estilo) {
   const g = GEO[k] || GEO.sedan, vb = g.vb, m = margen || 0, caja = SIL_IMG[k];
   const viewBox = (-m) + ' ' + (-m) + ' ' + (vb[2] + 2 * m) + ' ' + (vb[3] + 2 * m), sty = estilo ? ' style="' + estilo + '"' : '';
@@ -518,19 +545,25 @@ const ICONOS_LUGAR = { motor: 'M5 9h3V7h6v2h2l2 2h2v5h-2l-2 2H9l-2-2H5z M11 7V5 
   chasis: 'M3 6h18 M3 18h18 M12 6v12 M3 4v4 M21 4v4 M3 16v4 M21 16v4', puerta: 'M6 3h8l4 4v14H6z M6 11h12 M14 15h2', direccion: 'M5 6l4-2 M19 6l-4-2 M12 4v5 M12 9l3 12 M12 9l-3 12',
   cuadro: 'M4 17l5-9h8l-4 9z M9 8l4 9 M17 8l3 9', cabina: 'M12 3a9 9 0 1 0 0.01 0 M12 12v8 M4 12h16' };
 function ayudaVinTipo() {
-  const k = /pesad/i.test(AYUDAS_PL_NOMBRE) ? 'pesados' : S.tipo === 'moto' ? 'moto' : S.tipo === 'camioneta' ? 'pickup' : S.tipo === 'suv' ? 'suv' : 'sedan';
+  const k = (/pesad/i.test(AYUDAS_PL_NOMBRE) || S.tipo === 'camion') ? 'pesados' : S.tipo === 'moto' ? 'moto' : S.tipo === 'camioneta' ? 'pickup' : S.tipo === 'suv' ? 'suv' : 'sedan';
   const ok = (a) => a && Array.isArray(a.lugares) && a.lugares.some((l) => l && l.nombre && Array.isArray(l.pos));
   const VT = AYUDAS_PL && AYUDAS_PL.vinTipos; return ok(VT && VT[k]) ? VT[k] : AYUDA_VIN_DEF[k];
 }
-function ayudaVinNueva(A, seguir) {
+// V18 · DEC-301: ayuda de la serie por tipo de máquina (formulario publicado › ayudas.serieTipos; si no la trae, este mismo contenido)
+const AYUDA_SERIE_DEF = {"tractor": {"titulo": "Tractor", "imagen": "ayudas/serie3d-tractor.jpg", "fondo": "#FFFFFF", "intro": "Busca la placa metálica del fabricante o el número grabado en el chasis. Puede tener 17 caracteres o menos, según la marca.", "lugares": [{"nombre": "Placa en el bastidor", "zona": "Bajo la cabina, junto a los peldaños", "icono": "chasis", "consejo": "Placa metálica remachada en el bastidor, debajo de la cabina. Limpia el polvo o el barro antes de la foto.", "origen": [], "pos": [0.55, 0.62]}, {"nombre": "Soporte del eje delantero", "zona": "Frente, junto a la rueda delantera", "icono": "chasis", "consejo": "Número grabado en el soporte del eje delantero o en la parte delantera del chasis.", "origen": [], "pos": [0.27, 0.63]}, {"nombre": "Dentro de la cabina", "zona": "Poste o bajo el asiento", "icono": "cabina", "consejo": "Placa del fabricante en un poste de la cabina o bajo el asiento del operador.", "origen": [], "pos": [0.56, 0.28]}]}, "montacargas": {"titulo": "Montacargas", "imagen": "ayudas/serie3d-montacargas.jpg", "fondo": "#FFFFFF", "intro": "Busca la placa de datos del fabricante: trae el modelo, la serie y la capacidad.", "lugares": [{"nombre": "Placa de datos del fabricante", "zona": "Puesto del operador", "icono": "cabina", "consejo": "Placa metálica en el tablero, junto a la palanca o en el protector superior del operador.", "origen": [], "pos": [0.46, 0.38]}, {"nombre": "Chasis junto al mástil", "zona": "Frente, base del mástil", "icono": "chasis", "consejo": "Número estampado en el chasis, donde se une con el mástil.", "origen": [], "pos": [0.34, 0.62]}, {"nombre": "Contrapeso", "zona": "Parte trasera", "icono": "chasis", "consejo": "En algunos modelos, la serie está estampada en el contrapeso o en el chasis trasero.", "origen": [], "pos": [0.74, 0.55]}]}, "retroexcavadora": {"titulo": "Retroexcavadora", "imagen": "ayudas/serie3d-retroexcavadora.jpg", "fondo": "#FFFFFF", "intro": "Busca la placa del número de identificación del producto (PIN) o el número grabado en el chasis.", "lugares": [{"nombre": "Placa PIN en el chasis", "zona": "Lado izquierdo, bajo la cabina", "icono": "chasis", "consejo": "Placa metálica remachada en el bastidor, debajo o delante de la cabina, del lado izquierdo.", "origen": [], "pos": [0.56, 0.66]}, {"nombre": "Placa en la cabina", "zona": "Poste delantero o junto a la puerta", "icono": "cabina", "consejo": "Placa del fabricante en el poste delantero de la cabina o junto a la puerta.", "origen": [], "pos": [0.5, 0.34]}, {"nombre": "Bastidor junto al cargador", "zona": "Frente, base de los brazos", "icono": "chasis", "consejo": "Número estampado en el bastidor delantero, donde se apoyan los brazos del cargador.", "origen": [], "pos": [0.3, 0.55]}]}, "bulldozer": {"titulo": "Tractor oruga (bulldozer)", "imagen": "ayudas/serie3d-bulldozer.jpg", "fondo": "#FFFFFF", "intro": "Busca la placa del número de identificación del producto (PIN) en el bastidor o en la cabina.", "lugares": [{"nombre": "Placa PIN en el bastidor", "zona": "Lado izquierdo, bajo la cabina", "icono": "chasis", "consejo": "Placa metálica remachada en el bastidor principal, debajo de la cabina, del lado izquierdo.", "origen": [], "pos": [0.63, 0.55]}, {"nombre": "Placa en la cabina", "zona": "Estructura de protección (ROPS)", "icono": "cabina", "consejo": "Placa en un poste de la estructura de protección de la cabina.", "origen": [], "pos": [0.72, 0.24]}, {"nombre": "Bastidor trasero", "zona": "Atrás, cerca del desgarrador", "icono": "chasis", "consejo": "Número estampado en el bastidor trasero, cerca del desgarrador.", "origen": [], "pos": [0.9, 0.5]}]}};
+function ayudaSerieTipo() {
+  const k = S.tipo, ok = (a) => a && Array.isArray(a.lugares) && a.lugares.some((l) => l && l.nombre && Array.isArray(l.pos));
+  const ST = AYUDAS_PL && AYUDAS_PL.serieTipos; return ok(ST && ST[k]) ? ST[k] : (AYUDA_SERIE_DEF[k] || null);
+}
+function ayudaVinNueva(A, seguir, que) { que = que || 'el VIN';
   const L = A.lugares.filter((l) => l && l.nombre && Array.isArray(l.pos) && isFinite(l.pos[0]) && isFinite(l.pos[1])).slice(0, 9), n = L.length; let sel = 0;
-  const div = document.createElement('div'); div.className = 'rev'; div.setAttribute('role', 'dialog'); div.setAttribute('aria-label', '¿Dónde está el VIN?');
+  const div = document.createElement('div'); div.className = 'rev'; div.setAttribute('role', 'dialog'); div.setAttribute('aria-label', '¿Dónde está ' + que + '?');
   div.style.cssText = 'background:#fff;color:#011E41;overflow:auto;font-family:Mulish,Arial,sans-serif';
   const chip = (t, fondo, color) => '<span style="display:inline-block;padding:4px 10px;border-radius:999px;background:' + fondo + ';color:' + color + ';font-size:12px;font-weight:700">' + esc(t) + '</span>';
   const pintar = () => { const a = L[sel], c = (x) => Math.max(0, Math.min(1, +x)) * 100;
     div.innerHTML = '<div style="padding:20px 18px 22px;max-width:520px;margin:0 auto;display:flex;flex-direction:column;gap:14px">' +
       '<div style="display:flex;flex-direction:column;gap:8px"><span style="font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#008BBF">Antes de la foto</span>' +
-      '<h1 style="margin:0;font-size:28px;line-height:1.1;font-weight:300">¿Dónde está <b style="font-weight:800">el VIN</b>?</h1>' +
+      '<h1 style="margin:0;font-size:28px;line-height:1.1;font-weight:300">¿Dónde está <b style="font-weight:800">' + que + '</b>?</h1>' +
       '<div style="display:flex;gap:8px;flex-wrap:wrap">' + chip(A.titulo || '', '#00AEEF', '#fff') + chip(n + (n === 1 ? ' lugar posible' : ' lugares posibles'), '#F4F4F4', '#484848') + '</div>' +
       (A.intro ? '<p style="margin:0;font-size:14px;line-height:1.45;color:#484848">' + esc(A.intro) + '</p>' : '') + '</div>' +
       '<div style="position:relative;border-radius:20px;overflow:hidden;background:' + esc(A.fondo || '#011E41') + ';box-shadow:0 12px 20px rgba(1,30,65,.10),0 0 0 1px #E8E8E8">' +
@@ -560,7 +593,8 @@ function ayudaVinNueva(A, seguir) {
 // ---------- Ayuda: dónde encontrar el VIN o la serie ----------
 function ayudaVin(id, seguir) { try { workerOcr().catch(() => {}); } catch (e) {}   // 24/11/2026: el motor de lectura se prepara mientras el cliente lee la ayuda
   const t0 = T(), maq = t0.maq, moto = S.tipo === 'moto', pick = S.tipo === 'camioneta', vb = t0.vb, d = t0.contorno.superior;
-  if (!maq) { const AT = ayudaVinTipo(); if (AT && Array.isArray(AT.lugares) && AT.lugares.length) return ayudaVinNueva(AT, seguir); }   // SQL 99: el VIN usa el diseño por tipo; la serie, la ayuda anterior
+  if (!maq) { const AT = ayudaVinTipo(); if (AT && Array.isArray(AT.lugares) && AT.lugares.length) return ayudaVinNueva(AT, seguir); }
+  else { const AS = ayudaSerieTipo(); if (AS && Array.isArray(AS.lugares) && AS.lugares.length) return ayudaVinNueva(AS, seguir, 'la serie'); }   // V18: la serie con el diseño nuevo   // SQL 99: el VIN usa el diseño por tipo; la serie, la ayuda anterior
   // Ubicaciones del número grabado (no se aceptan stickers). Posición sobre la vista superior: frente a la derecha, lado del conductor arriba.
   // 26/11/2026 · SQL 98: la ayuda sale del formulario publicado (Back-office › Formularios › paso › Ayuda). Si no trae lugares, se usa la ayuda fija.
   const AY = AYUDAS_PL && (maq ? AYUDAS_PL.serie : AYUDAS_PL.vin), lug = (l) => (Array.isArray(l) ? l : []).filter((x) => x && Array.isArray(x.pos) && x.pos.length === 2 && isFinite(x.pos[0]) && isFinite(x.pos[1]) && String(x.texto || '').trim())
@@ -944,8 +978,7 @@ if (!window.CX_TOKEN) render();
   // ---------- 63 · Varios vehículos (DEC-245 y DEC-246): «Tus vehículos», un recorrido y un envío por vehículo ----------
   const MV = { activo: false, cur: '', lista: [] };
   const KV = (ref) => KEY + ':' + ref, KCUR = KEY + ':cur';
-  const tipoDe = (vh) => { const d = vh.datos || {}, t = String(d.carroceria || d.tipo || d.tipoConfirmado || '').toLowerCase();
-    return /moto/.test(t) ? 'moto' : /suv/.test(t) ? 'suv' : /camioneta|pick/.test(t) ? 'camioneta' : 'sedan'; };
+  const tipoDe = (vh) => tipoSilueta(vh.datos || {}, '');   // V18: la regla única
   const descDe = (vh) => { const d = vh.datos || {}; return [d.marca, d.modelo, d.anio].filter(Boolean).join(' ') || vh.descripcion || ''; };
   const placaDe = (vh) => (vh.datos || {}).placa || '';
   const vehDe = (ref) => MV.lista.find((x) => x.ref === ref);
@@ -1034,14 +1067,14 @@ if (!window.CX_TOKEN) render();
       if (!D || D.error) return pantalla('No pudimos abrir tu inspección', esc((D && D.error) || 'Enlace no válido.') + '<br><br>Pídele a tu asesor un enlace nuevo.');
       if (D.ofrece === false) return pantalla('Esta inspección no está disponible', 'La autoinspección ya no aplica para tu caso. Tu asesor te contactará para coordinar otra modalidad.');
       // caso y vehículo reales
-      const rd = (D.riesgo && D.riesgo.datos) || {}, car = ['sedan', 'suv', 'camioneta', 'moto'].includes(rd.carroceria) ? rd.carroceria : 'sedan';
-      ['sedan', 'suv', 'camioneta', 'moto'].forEach((t) => { CASOS[t] = { numero: String(D.caso.numero), contacto: (D.caso.contacto && D.caso.contacto.nombre) || D.caso.asegurado, asegurado: D.caso.asegurado,
+      const rd = (D.riesgo && D.riesgo.datos) || {}, car = tipoSilueta(rd, D.plantilla && D.plantilla.plantilla);   // V18: la regla única (camión y maquinaria incluidos)
+      Object.keys(GEO).forEach((t) => { CASOS[t] = { numero: String(D.caso.numero), contacto: (D.caso.contacto && D.caso.contacto.nombre) || D.caso.asegurado, asegurado: D.caso.asegurado,
         desc: [rd.marca, rd.modelo, rd.anio].filter(Boolean).join(' ') || (D.riesgo.descripcion || ''), placa: rd.placa || '', vin: rd.vin || '' }; EXTRAS_SOLICITUD[t] = Array.isArray(rd.extras) ? rd.extras.slice() : []; });
       if (!(S.eventos || []).some((e) => e.accion === 'Subió la foto') && S.paso === 'inicio') S.tipo = car;
       // pasos de la plantilla (columna Autoinspección), en su orden
       const pasos = (D.plantilla && D.plantilla.pasos) || [], M = D.plantilla && D.plantilla.mapa ? D.plantilla.mapa[S.tipo] || D.plantilla.mapa[car] : null;
       const foto = pasos.filter((st) => !esDoc(st)).map((st) => aPaso(st, M));
-      if (foto.length) { PASOS_VEH.splice(0, PASOS_VEH.length, ...foto); PASOS_MOTO.splice(0, PASOS_MOTO.length, ...foto); }
+      if (foto.length) { PASOS_VEH.splice(0, PASOS_VEH.length, ...foto); PASOS_MOTO.splice(0, PASOS_MOTO.length, ...foto); PASOS_MAQ.splice(0, PASOS_MAQ.length, ...foto); }   // V18: también la maquinaria
       AYUDAS_PL = (D.plantilla && D.plantilla.ayudas && typeof D.plantilla.ayudas === 'object') ? D.plantilla.ayudas : null;   // SQL 98
       AYUDAS_PL_NOMBRE = (D.plantilla && D.plantilla.plantilla) || '';   // SQL 99: Pesados usa su propia ayuda
       DOCS = docsActuales;
