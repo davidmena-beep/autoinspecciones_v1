@@ -198,7 +198,20 @@ function shell(cuerpo) {
   const salir = ['consent', 'tipo', 'mapa', 'video', 'revision', 'declaracion'].indexOf(S.paso) >= 0 ? '<button onclick="salirApp()" style="margin-left:auto;font:800 13px Mulish;border:1.5px solid var(--line);background:#fff;border-radius:10px;padding:7px 12px;color:var(--ink);cursor:pointer">Salir</button>' : '';
   return '<header class="hero"><div class="logo" style="display:flex;align-items:center;gap:10px">' + (a.logo ? '<img src="' + a.logo + '" alt="' + esc(a.nombre) + '">' : '<span class="iso" aria-hidden="true" style="background:var(--p);color:#fff">' + esc(a.iso) + '</span><span style="color:var(--pd)">' + esc(a.logoTexto) + '</span>') + salir + '</div><div class="meta"><span>Autoinspección · caso ' + CASO().numero + '</span><span>' + (i + 1) + ' de ' + FLUJO.length + '</span></div><div class="steps" aria-hidden="true">' + FLUJO.map((f, k) => '<i class="' + (k <= i ? 'on' : '') + '"></i>').join('') + '</div></header><main>' + cuerpo + '</main>';
 }
-const icono = (w) => T().icono.replace('<svg ', '<svg style="width:' + (w || '100%') + ';height:auto" ');
+// 27/11/2026 · V17 · DEC-298 y DEC-299: vista superior con la ilustración oficial (SiriusBackoffice/recursos/siluetas), colocada sobre el contorno del
+// dibujo con la misma caja que SIRIUS_SILUETAS 1.7 (SQL 100): los puntos del mapa no se mueven. Sin ilustración o si no carga, el dibujo de siempre.
+const SIL_BASE = 'https://davidmena-beep.github.io/SiriusBackoffice/recursos/siluetas/';
+const SIL_IMG = { sedan: [15, 1, 290, 122], suv: [15, 1, 290, 122], camioneta: [14, 1, 312, 122], moto: [14, 16, 196, 92], montacargas: [30, 10, 280, 110] };
+function silSvg(k, marcas, margen, estilo) {
+  const g = GEO[k] || GEO.sedan, vb = g.vb, m = margen || 0, caja = SIL_IMG[k];
+  const viewBox = (-m) + ' ' + (-m) + ' ' + (vb[2] + 2 * m) + ' ' + (vb[3] + 2 * m), sty = estilo ? ' style="' + estilo + '"' : '';
+  if (!caja) return g.icono.replace(/viewBox="[^"]+"/, 'viewBox="' + viewBox + '"').replace('<svg ', '<svg' + sty + ' ').replace('</svg>', (marcas || '') + '</svg>');
+  const dibujo = g.icono.replace(/^<svg[^>]*>/, '').replace(/<\/svg>\s*$/, '');
+  return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="' + viewBox + '"' + sty + ' role="img" aria-label="' + esc(ROTULO_LARGO[k] || k) + ' visto desde arriba">' +
+    '<g data-silvec style="display:none">' + dibujo + '</g><image data-silimg href="' + SIL_BASE + 'sup-' + k + '.png" x="' + caja[0] + '" y="' + caja[1] + '" width="' + caja[2] + '" height="' + caja[3] + '" preserveAspectRatio="none"/>' + (marcas || '') + '</svg>';
+}
+document.addEventListener('error', (e) => { const t = e.target; if (!t || !t.hasAttribute || !t.hasAttribute('data-silimg')) return; const v = t.parentNode && t.parentNode.querySelector('[data-silvec]'); if (v) v.style.display = ''; t.remove(); }, true);   // la ilustración no cargó: el dibujo
+const icono = (w) => silSvg(S.tipo, '', 0, 'width:' + (w || '100%') + ';height:auto');
 function render() {
   aplicarApariencia(); const app = $('#app'), c = CASO();
   if (location.hash === '#vencido') { app.innerHTML = shell('<h1>Este enlace venció</h1><p>El enlace de tu autoinspección venció el 15/10/2026 · 20:30.</p><p class="muted">Pídenos uno nuevo y te lo enviaremos por WhatsApp o correo.</p><button class="btn" onclick="this.disabled=true;this.textContent=\'Listo: te enviaremos un enlace nuevo\'">Pedir un enlace nuevo</button>' + demo()); return; }
@@ -229,7 +242,7 @@ function demo() {
 }
 function renderTipo() {
   const lista = MAQ.indexOf(S.tipo) >= 0 ? MAQ : VEH, q = MAQ.indexOf(S.tipo) >= 0 ? '¿Qué tipo de equipo es?' : '¿Qué tipo de vehículo es?';
-  $('#app').innerHTML = shell('<h1>' + q + '</h1><p class="muted">Lo usamos para mostrarte el contorno correcto en cada foto. Viene marcado según tu solicitud.</p><div class="docs" style="grid-template-columns:1fr 1fr">' + lista.map(k => '<button class="doc ' + (k === S.tipo ? 'ok' : '') + '" style="flex-direction:column;align-items:stretch;padding:12px" data-tipo="' + k + '"><span style="display:block">' + GEO[k].icono.replace('<svg ', '<svg style="width:100%;height:auto" ') + '</span><b style="margin-top:6px">' + esc(ROTULO_LARGO[k]) + '</b></button>').join('') + '</div><button class="btn" id="tipoOk">Continuar</button>');
+  $('#app').innerHTML = shell('<h1>' + q + '</h1><p class="muted">Lo usamos para mostrarte el contorno correcto en cada foto. Viene marcado según tu solicitud.</p><div class="docs" style="grid-template-columns:1fr 1fr">' + lista.map(k => '<button class="doc ' + (k === S.tipo ? 'ok' : '') + '" style="flex-direction:column;align-items:stretch;padding:12px" data-tipo="' + k + '"><span style="display:block">' + silSvg(k, '', 0, 'width:100%;height:auto') + '</span><b style="margin-top:6px">' + esc(ROTULO_LARGO[k]) + '</b></button>').join('') + '</div><button class="btn" id="tipoOk">Continuar</button>');
   $('#tipoOk').onclick = () => { evento('Eligió el tipo', ROTULO_LARGO[S.tipo]); ir('mapa'); };
   document.querySelectorAll('[data-tipo]').forEach(b => b.onclick = () => elegirTipo(b.dataset.tipo));
 }
@@ -249,7 +262,7 @@ function renderMapa() {
     marks += '<g class="pt" tabindex="0" role="button" aria-label="' + esc(m.nombre) + (done ? ', hecha' : cur ? ', siguiente' : '') + '" data-paso="' + m.id + '">' + (cur ? '<circle cx="' + x + '" cy="' + y + '" r="14" fill="var(--p)" opacity=".22"><animate attributeName="r" values="11;16;11" dur="1.6s" repeatCount="indefinite"/></circle>' : '') +
       '<circle class="c" cx="' + x + '" cy="' + y + '" r="8" fill="' + (done ? '#1f7a5c' : cur ? 'var(--p)' : '#fff') + '" stroke="' + (done ? '#fff' : 'var(--p)') + '" stroke-width="2.4"/>' + (done ? '<path d="M' + (x - 3.5) + ',' + y + ' l2.5,2.8 l5,-5.5" fill="none" stroke="#fff" stroke-width="2"/>' : '') + '</g>';
   });
-  const svg = t.icono.replace(/viewBox="[^"]+"/, 'viewBox="-18 -18 ' + (t.vb[2] + 36) + ' ' + (t.vb[3] + 36) + '"').replace('</svg>', marks + '</svg>');
+  const svg = silSvg(S.tipo, marks, 18, '');   // V17: con la ilustración
   const h = hechas(), tot = todos().length, pct = h / tot, R = 24, L = 2 * Math.PI * R;
   const docs = DOCS();
   $('#app').innerHTML = shell('<button class="btn btn3" style="width:auto;min-height:36px;margin:0 0 6px;padding:4px 0" onclick="ir(\'tipo\')">‹ Tipo: ' + esc(ROTULO_LARGO[S.tipo]) + '</button><div class="ring"><svg viewBox="0 0 58 58" aria-hidden="true"><circle cx="29" cy="29" r="' + R + '" fill="none" stroke="#e3e9f0" stroke-width="7"/><circle cx="29" cy="29" r="' + R + '" fill="none" stroke="var(--p)" stroke-width="7" stroke-linecap="round" stroke-dasharray="' + (L * pct) + ' ' + L + '" transform="rotate(-90 29 29)"/></svg><div><b>' + h + ' de ' + tot + ' fotos</b><span class="muted">' + (sig ? 'Toca un punto o sigue con el azul' : (docs.every(d => S.fotos[d[0]]) ? 'Fotos completas' : 'Faltan documentos')) + '</span></div></div>' +
