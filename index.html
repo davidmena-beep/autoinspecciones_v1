@@ -917,6 +917,11 @@ if (!window.CX_TOKEN) render();
       else { const n = Math.max(d.min || 1, (S.cxOtros || {})[d.id] || 1), p = (d.pasos || [])[0] || ('documentos_' + d.id);
         for (let i = 1; i <= n; i++) L.push([idDoc(p, i), d.nombre + (n > 1 || d.max > 1 ? ' · foto ' + i : '')]); }
     });
+    // V22 · 27/11/2026: también los pasos de documentos del propio formulario (columna Autoinspección) que el catálogo del portal no cubre
+    // (p. ej., Equipo y maquinaria: matrícula, licencia del operador y ficha técnica). Los «documentos_*» los sigue gobernando el catálogo.
+    const cubiertos = new Set(); (D.documentos || []).forEach((d) => (d.pasos || []).forEach((p) => cubiertos.add(p)));
+    ((D.plantilla && D.plantilla.pasos) || []).filter((st) => esDoc(st) && !/^documentos_/.test(st.id) && !cubiertos.has(st.id))
+      .forEach((st) => L.push([idDoc(st.id, 1), st.name || st.id]));
     return L;
   }
   // ---------- subida de archivos ----------
