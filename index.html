@@ -151,7 +151,7 @@ function evento(accion, detalle) { const d = new Date(), p = n => String(n).padS
   GEO[k] = g; });
 // Regla única: de los datos de la solicitud (tipo confirmado, tipo de equipo, carrocería o clase) y del formulario, el tipo de la app.
 function tipoSilueta(d, plantilla) {
-  d = d || {}; const t = String(d.tipoConfirmado || d.tipoEquipo || d.carroceria || d.tipo || d.clase || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''), p = String(plantilla || '').toLowerCase();
+  d = d || {}; const t = String([d.tipoConfirmado, d.tipoEquipo, d.carroceria, d.tipo, d.clase].find((x) => x && !/^\s*sin tipo\s*$/i.test(String(x))) || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''), p = String(plantilla || '').toLowerCase();
   if (/camioneta|pick ?up|cabina (simple|doble)/.test(t)) return 'camioneta';
   if (/\bcamion\b|tracto ?camion|cabezal|volqueta|furgon|\bpesad/.test(t)) return 'camion';
   if (/oruga|bulldozer|topadora/.test(t)) return 'bulldozer';
@@ -165,6 +165,8 @@ function tipoSilueta(d, plantilla) {
   if (/sedan|hatch|coupe|automovil|\bauto\b/.test(t)) return 'sedan';
   return /pesad/.test(p) ? 'camion' : /moto/.test(p) ? 'moto' : /equipo|maquinaria/.test(p) ? 'generico' : 'sedan';
 }
+// V19: ¿la solicitud trae el tipo? («Tipo de vehículo» del Back-office; «Sin tipo» o vacío = no)
+function tieneTipo(d) { d = d || {}; return [d.tipoConfirmado, d.tipoEquipo, d.carroceria, d.tipo, d.clase].some((x) => x && String(x).trim() && !/^\s*sin tipo\s*$/i.test(String(x))); }
 const T = () => GEO[S.tipo], CASO = () => CASOS[S.tipo], AP = () => APARIENCIAS[S.apariencia];
 let DOCS = () => T().maq ? [['doc_matricula', 'Matrícula o constancia de trámite'], ['doc_licencia_f', 'Licencia del operador (frente)'], ['doc_licencia_p', 'Licencia del operador (reverso)'], ['doc_ficha', 'Ficha técnica']]
   : [['doc_matricula_f', 'Matrícula (frente)'], ['doc_matricula_p', 'Matrícula (reverso)'], ['doc_licencia_f', 'Licencia (frente)'], ['doc_licencia_p', 'Licencia (reverso)']];
@@ -269,13 +271,18 @@ function demo() {
 }
 function renderTipo() {
   const lista = MAQ.indexOf(S.tipo) >= 0 ? MAQ : VEH, q = MAQ.indexOf(S.tipo) >= 0 ? '¿Qué tipo de equipo es?' : '¿Qué tipo de vehículo es?';
-  $('#app').innerHTML = shell('<h1>' + q + '</h1><p class="muted">Lo usamos para mostrarte el contorno correcto en cada foto. Viene marcado según tu solicitud.</p><div class="docs" style="grid-template-columns:1fr 1fr">' + lista.map(k => '<button class="doc ' + (k === S.tipo ? 'ok' : '') + '" style="flex-direction:column;align-items:stretch;padding:12px" data-tipo="' + k + '"><span style="display:block">' + silSvg(k, '', 0, 'width:100%;height:auto') + '</span><b style="margin-top:6px">' + esc(ROTULO_LARGO[k]) + '</b></button>').join('') + '</div><button class="btn" id="tipoOk">Continuar</button>');
-  $('#tipoOk').onclick = () => { evento('Eligió el tipo', ROTULO_LARGO[S.tipo]); ir('mapa'); };
+  // V19: resaltado solo el tipo de la solicitud («Tipo de vehículo» del Back-office) o el que eligió el cliente; con «Sin tipo», ninguno
+  const sol = S.tipoSolicitud, sinTipo = sol === null && !S.tipoElegido;
+  const nota = sol === null ? 'Tu solicitud no indica el tipo: elige el que corresponde para mostrarte el contorno correcto en cada foto.'
+    : 'Lo usamos para mostrarte el contorno correcto en cada foto. Viene marcado según tu solicitud; si no coincide, elige el correcto.';
+  $('#app').innerHTML = shell('<h1>' + q + '</h1><p class="muted">' + nota + '</p><div class="docs" style="grid-template-columns:1fr 1fr">' + lista.map(k => '<button class="doc ' + (k === S.tipo && !sinTipo ? 'ok' : '') + '" aria-pressed="' + (k === S.tipo && !sinTipo) + '" style="flex-direction:column;align-items:stretch;padding:12px" data-tipo="' + k + '"><span style="display:block">' + silSvg(k, '', 0, 'width:100%;height:auto') + '</span><b style="margin-top:6px">' + esc(ROTULO_LARGO[k]) + '</b>' + (k === sol ? '<span style="margin-top:4px;font-size:12px;font-weight:700;color:var(--p)">Según tu solicitud</span>' : '') + '</button>').join('') + '</div><button class="btn" id="tipoOk"' + (sinTipo ? ' disabled' : '') + '>Continuar</button>');
+  $('#tipoOk').onclick = () => { if (S.tipoSolicitud === null && !S.tipoElegido) return; evento('Eligió el tipo', ROTULO_LARGO[S.tipo] + (S.tipoSolicitud && S.tipoSolicitud !== S.tipo ? ' (la solicitud decía ' + ROTULO_LARGO[S.tipoSolicitud] + ')' : '')); ir('mapa'); };
   document.querySelectorAll('[data-tipo]').forEach(b => b.onclick = () => elegirTipo(b.dataset.tipo));
 }
-function elegirTipo(k) { if (k === S.tipo) return; const n = hechas() + (S.video ? 1 : 0);
+function elegirTipo(k) { if (k === S.tipo) { if (!S.tipoElegido) { S.tipoElegido = true; guardar(); } return renderTipo(); } const n = hechas() + (S.video ? 1 : 0);   // V19: elegir el mismo también confirma
   if (n > 0 && !confirm('Si cambias el tipo se borran las ' + n + ' fotos' + (S.video ? ' y el video' : '') + ' que ya tomaste. ¿Quieres cambiarlo?')) return;
-  const prev = S.tipo; S.tipo = k; S.fotos = {}; S.video = null; S.extras = null; evento('Cambió el tipo', ROTULO_LARGO[prev] + ' → ' + ROTULO_LARGO[k] + (n ? ' · se borraron ' + n + ' archivos' : '')); guardar(); renderTipo(); }
+  const prev = S.tipo; S.tipo = k; S.tipoElegido = true; S.fotos = {}; S.video = null; S.extras = null; if (window.__rehacerPasos) window.__rehacerPasos(k);   // V19: el mapa del tipo elegido
+  evento('Cambió el tipo', (S.tipoSolicitud === null && !prev ? '' : ROTULO_LARGO[prev] + ' → ') + ROTULO_LARGO[k] + (S.tipoSolicitud && S.tipoSolicitud !== k ? ' (la solicitud decía ' + ROTULO_LARGO[S.tipoSolicitud] + ')' : '') + (n ? ' · se borraron ' + n + ' archivos' : '')); guardar(); renderTipo(); }
 function salirApp() { if (!confirm('¿Salir? Tu avance queda guardado y puedes volver con el mismo enlace.')) return; evento('Salió de la aplicación', hechas() + ' de ' + todos().length + ' fotos'); ir('salio'); }
 function cambiarTipo(t) { const a = S.apariencia; S = nuevo(t); S.apariencia = a; guardar(); location.hash = ''; render(); }
 function reiniciar() { try { localStorage.removeItem(KEY); } catch (e) {} location.hash = ''; location.reload(); }
@@ -988,7 +995,7 @@ if (!window.CX_TOKEN) render();
     const t = tipoDe(vh), d = vh.datos || {};
     ['sedan', 'suv', 'camioneta', 'moto'].forEach((k) => { CASOS[k] = { numero: String(D.caso.numero), contacto: (D.caso.contacto && D.caso.contacto.nombre) || D.caso.asegurado, asegurado: D.caso.asegurado,
       desc: descDe(vh), placa: placaDe(vh), vin: d.vin || '' }; EXTRAS_SOLICITUD[k] = Array.isArray(d.extras) ? d.extras.slice() : []; });
-    S = est && est.fotos ? est : nuevo(t); if (!est) { S.apariencia = 'ads'; } S.tipo = S.tipo || t; S.fotos = S.fotos || {};
+    S = est && est.fotos ? est : nuevo(t); if (!est) { S.apariencia = 'ads'; } S.tipo = S.tipo || t; S.fotos = S.fotos || {}; S.tipoSolicitud = tieneTipo(vh.datos || {}) ? t : null;   // V19
     (vh.subidas || []).forEach((x) => { if (x.tipo === 'video') { if (!S.video) S.video = { bytes: 0, subido: true, t: Date.now() }; return; }
       const id = x.tipo === 'documento' ? Object.keys(S.fotos).find((k) => pasoDeId(k) === x.paso) || idDoc(x.paso, 1) : x.paso;
       if (!S.fotos[id]) S.fotos[id] = { src: '', mini: '', subida: true, at: 'en SIRIUS' }; });
@@ -1071,10 +1078,13 @@ if (!window.CX_TOKEN) render();
       Object.keys(GEO).forEach((t) => { CASOS[t] = { numero: String(D.caso.numero), contacto: (D.caso.contacto && D.caso.contacto.nombre) || D.caso.asegurado, asegurado: D.caso.asegurado,
         desc: [rd.marca, rd.modelo, rd.anio].filter(Boolean).join(' ') || (D.riesgo.descripcion || ''), placa: rd.placa || '', vin: rd.vin || '' }; EXTRAS_SOLICITUD[t] = Array.isArray(rd.extras) ? rd.extras.slice() : []; });
       if (!(S.eventos || []).some((e) => e.accion === 'Subió la foto') && S.paso === 'inicio') S.tipo = car;
+      S.tipoSolicitud = tieneTipo(rd) ? car : null;   // V19: el tipo del Back-office (null = «Sin tipo»: el cliente lo elige)
       // pasos de la plantilla (columna Autoinspección), en su orden
       const pasos = (D.plantilla && D.plantilla.pasos) || [], M = D.plantilla && D.plantilla.mapa ? D.plantilla.mapa[S.tipo] || D.plantilla.mapa[car] : null;
       const foto = pasos.filter((st) => !esDoc(st)).map((st) => aPaso(st, M));
       if (foto.length) { PASOS_VEH.splice(0, PASOS_VEH.length, ...foto); PASOS_MOTO.splice(0, PASOS_MOTO.length, ...foto); PASOS_MAQ.splice(0, PASOS_MAQ.length, ...foto); }   // V18: también la maquinaria
+      window.__rehacerPasos = (k) => { const M2 = D.plantilla && D.plantilla.mapa ? D.plantilla.mapa[k] : null, f2 = pasos.filter((st) => !esDoc(st)).map((st) => aPaso(st, M2));   // V19
+        if (f2.length) { PASOS_VEH.splice(0, PASOS_VEH.length, ...f2); PASOS_MOTO.splice(0, PASOS_MOTO.length, ...f2); PASOS_MAQ.splice(0, PASOS_MAQ.length, ...f2); } };
       AYUDAS_PL = (D.plantilla && D.plantilla.ayudas && typeof D.plantilla.ayudas === 'object') ? D.plantilla.ayudas : null;   // SQL 98
       AYUDAS_PL_NOMBRE = (D.plantilla && D.plantilla.plantilla) || '';   // SQL 99: Pesados usa su propia ayuda
       DOCS = docsActuales;
